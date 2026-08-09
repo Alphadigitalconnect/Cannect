@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@layer base {
+  body, button, input, select, textarea {
+    font-family: var(--font-montserrat), sans-serif !important;
+    @apply bg-slate-50 text-navy antialiased selection:bg-gold-light/30;
+  }
+  
+  input, textarea, select {
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-montserrat), sans-serif !important;
+    @apply tracking-tight;
+  }
+}
+
+/* Hide scrollbar universally */
+::-webkit-scrollbar {
+  display: none;
+}
+html, body {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Utilities for fine borders and interactive outlines */
+.fine-border {
+  border: 1px solid rgba(14, 165, 233, 0.25);
+}
+
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2 focus:ring-offset-white;
+}
+
+/* Custom styles for animations */
+.transition-smooth {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Landing Text Transitions - Fade In Up */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.8s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+.animate-fade-in-delay-1 {
+  animation: fadeInUp 0.8s cubic-bezier(0.215, 0.61, 0.355, 1) 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-delay-2 {
+  animation: fadeInUp 0.8s cubic-bezier(0.215, 0.61, 0.355, 1) 0.4s forwards;
+  opacity: 0;
+}
+
