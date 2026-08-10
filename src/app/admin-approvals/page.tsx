@@ -10,6 +10,7 @@ export default function AdminApprovalsPage() {
   const [authError, setAuthError] = useState("");
 
   const [users, setUsers] = useState<any[]>([]);
+  const [filterStatus, setFilterStatus] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -68,8 +69,8 @@ export default function AdminApprovalsPage() {
         body: JSON.stringify({ targetUserId: userId, status })
       });
       if (res.ok) {
-        // Remove user from the list
-        setUsers(users.filter(u => u.id !== userId));
+        // Update user status instead of removing
+        setUsers(users.map(u => u.id === userId ? { ...u, status } : u));
       } else {
         alert("Action failed. Please try again.");
       }
@@ -156,20 +157,32 @@ export default function AdminApprovalsPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="mb-8 flex justify-between items-end">
+        <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
           <div>
-            <h2 className="text-2xl font-black text-navy tracking-tight">Pending Requests</h2>
+            <h2 className="text-2xl font-black text-navy tracking-tight">Registration Requests</h2>
             <p className="text-slate-500 mt-1">
-              There are <strong className="text-skyblue">{users.length}</strong> users waiting for approval.
+              There are <strong className="text-skyblue">{users.filter(u => filterStatus === 'all' || u.status === filterStatus || (!u.status && filterStatus === 'pending')).length}</strong> {filterStatus === 'all' ? 'total' : filterStatus} users.
             </p>
           </div>
-          <button
-            onClick={fetchPendingUsers}
-            disabled={loading}
-            className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-skyblue transition-all"
-          >
-            {loading ? "Refreshing..." : "Refresh Queue"}
-          </button>
+          <div className="flex gap-3 items-center">
+            <select 
+              value={filterStatus} 
+              onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-xs font-bold text-slate-600 outline-none focus:border-skyblue focus:ring-1 focus:ring-skyblue transition-all"
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="all">All</option>
+            </select>
+            <button
+              onClick={fetchPendingUsers}
+              disabled={loading}
+              className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-skyblue transition-all whitespace-nowrap"
+            >
+              {loading ? "Refreshing..." : "Refresh Queue"}
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -178,28 +191,33 @@ export default function AdminApprovalsPage() {
               <div key={i} className="bg-white h-48 rounded-2xl shadow-sm border border-slate-100 animate-pulse"></div>
             ))}
           </div>
-        ) : users.length === 0 ? (
+        ) : users.filter(u => filterStatus === 'all' || u.status === filterStatus || (!u.status && filterStatus === 'pending')).length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-16 text-center shadow-sm">
             <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
               ✓
             </div>
-            <h3 className="text-xl font-bold text-navy mb-2">You're all caught up!</h3>
+            <h3 className="text-xl font-bold text-navy mb-2">Nothing to see here!</h3>
             <p className="text-slate-500 max-w-md mx-auto">
-              There are no pending registrations in the queue. New sign-ups will appear here automatically.
+              There are no {filterStatus !== 'all' ? filterStatus : ''} registrations matching your criteria.
             </p>
           </div>
         ) : (
-          <StaggeredFadeIn>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {users.map(user => (
+          <StaggeredFadeIn className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {users.filter(u => filterStatus === 'all' || u.status === filterStatus || (!u.status && filterStatus === 'pending')).map(user => {
+              const currentStatus = user.status || 'pending';
+              return (
                 <div key={user.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col">
                   <div className="p-6 flex-grow">
                     <div className="flex justify-between items-start mb-4">
                       <div className="w-12 h-12 bg-skyblue/10 text-skyblue rounded-xl flex items-center justify-center font-bold text-xl">
                         {user.caName.charAt(0)}
                       </div>
-                      <span className="px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider rounded-full border border-amber-200">
-                        Pending
+                      <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${
+                        currentStatus === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                        currentStatus === 'rejected' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                        'bg-amber-50 text-amber-600 border-amber-200'
+                      }`}>
+                        {currentStatus}
                       </span>
                     </div>
                     <h3 className="text-lg font-bold text-navy">{user.caName}</h3>
@@ -232,22 +250,26 @@ export default function AdminApprovalsPage() {
                   <div className="p-4 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
                     <button
                       onClick={() => handleAction(user.id, "rejected")}
-                      disabled={actionLoading}
-                      className="py-2.5 rounded-xl text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 text-xs font-bold transition-colors uppercase tracking-wider"
+                      disabled={actionLoading || currentStatus === 'rejected'}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-colors uppercase tracking-wider ${
+                        currentStatus === 'rejected' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'text-rose-600 bg-white border border-rose-200 hover:bg-rose-50'
+                      }`}
                     >
                       Reject
                     </button>
                     <button
                       onClick={() => handleAction(user.id, "approved")}
-                      disabled={actionLoading}
-                      className="py-2.5 rounded-xl text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm shadow-emerald-200 text-xs font-bold transition-all transform hover:-translate-y-0.5 uppercase tracking-wider"
+                      disabled={actionLoading || currentStatus === 'approved'}
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all uppercase tracking-wider ${
+                        currentStatus === 'approved' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'text-white bg-emerald-500 hover:bg-emerald-600 shadow-sm shadow-emerald-200 transform hover:-translate-y-0.5'
+                      }`}
                     >
                       Approve
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </StaggeredFadeIn>
         )}
       </main>

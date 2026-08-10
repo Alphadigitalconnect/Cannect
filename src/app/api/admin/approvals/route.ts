@@ -5,15 +5,13 @@ export async function GET(request: Request) {
   try {
     const db = readDb();
 
-    // Return users that are pending
-    const pendingUsers = db.users
-      .filter(u => u.status === "pending")
-      .map(u => {
-        const { password, ...safeUser } = u;
-        return safeUser;
-      });
+    // Return all users
+    const allUsers = db.users.map(u => {
+      const { password, ...safeUser } = u;
+      return safeUser;
+    });
 
-    return NextResponse.json({ users: pendingUsers, firms: db.firms }, { status: 200 });
+    return NextResponse.json({ users: allUsers, firms: db.firms }, { status: 200 });
   } catch (error) {
     console.error("Admin Approvals GET Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
