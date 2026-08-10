@@ -1,7 +1,14 @@
 import fs from "fs";
 import path from "path";
 
-const dbPath = path.join(process.cwd(), "data", "db.json");
+const dataDir = path.join(process.cwd(), "data");
+const dbPath = path.join(dataDir, "db.json");
+
+function ensureDataDir() {
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+}
 
 export interface Experience {
   companyName: string;
@@ -153,6 +160,7 @@ export interface DbSchema {
 
 export function readDb(): DbSchema {
   try {
+    ensureDataDir();
     if (!fs.existsSync(dbPath)) {
       const initialSchema: DbSchema = {
         users: [],
@@ -199,6 +207,7 @@ export function readDb(): DbSchema {
 
 export function writeDb(data: DbSchema): boolean {
   try {
+    ensureDataDir();
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), "utf-8");
     return true;
   } catch (error) {
