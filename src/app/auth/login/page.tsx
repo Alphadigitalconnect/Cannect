@@ -120,11 +120,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Seed helper message to make checking the portal easier */}
-        <div className="border-t border-slate-100 pt-4 bg-slate-50 p-3 rounded border text-[11px] text-slate-600">
-          <span className="font-semibold text-navy block mb-1">Testing Credentials:</span>
-          <span>Email: <strong>ca.rahul@example.com</strong><br />Password: <strong>password123</strong></span>
-        </div>
 
         {/* Register CTA */}
         <div className="text-center pt-2 text-xs text-slate-500 border-t border-slate-100">
