@@ -77,7 +77,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
-              Professional Email Address
+              Email Address
             </label>
             <input
               type="email"
