@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 interface ParamsProps {
   params: {
@@ -10,21 +10,26 @@ interface ParamsProps {
 // GET single firm details
 export async function GET(request: Request, { params }: ParamsProps) {
   try {
-    const db = readDb();
-    const firm = db.firms.find((f) => f.id === params.id);
-    
-    if (!firm) {
+    const { data: firm, error: firmError } = await supabase
+      .from('firms')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle();
+      
+    if (firmError || !firm) {
       return NextResponse.json(
         { error: "Firm profile not found." },
         { status: 404 }
       );
     }
     
-    const connectionCount = db.connections.filter(
-      (c) =>
-        c.status === "accepted" &&
-        (c.senderId === firm.userId || c.receiverId === firm.userId)
-    ).length;
+    const { data: connections } = await supabase
+      .from('connections')
+      .select('senderId, receiverId')
+      .eq('status', 'accepted')
+      .or(`senderId.eq.${firm.userId},receiverId.eq.${firm.userId}`);
+
+    const connectionCount = (connections || []).length;
 
     const firmWithConnections = {
       ...firm,
@@ -50,34 +55,33 @@ export async function POST(request: Request, { params }: ParamsProps) {
       );
     }
 
-    const db = readDb();
-    const firm = db.firms.find((f) => f.id === params.id);
+    const { data: firm, error: firmError } = await supabase
+      .from('firms')
+      .select('id')
+      .eq('id', params.id)
+      .maybeSingle();
 
-    if (!firm) {
+    if (firmError || !firm) {
       return NextResponse.json(
         { error: "Recipient firm not found." },
         { status: 404 }
       );
     }
 
-    const newRequest = {
-      id: "req_" + Date.now(),
-      firmId: params.id,
-      senderName,
-      senderEmail,
-      senderPhone: senderPhone || "",
-      message,
-      timestamp: new Date().toISOString()
-    };
+    const { error: insertError } = await supabase
+      .from('contact_requests')
+      .insert([
+        {
+          firmId: params.id,
+          senderName,
+          senderEmail,
+          senderPhone: senderPhone || "",
+          message
+        }
+      ]);
 
-    if (!db.contactRequests) {
-      db.contactRequests = [];
-    }
-
-    db.contactRequests.push(newRequest);
-
-    const success = writeDb(db);
-    if (!success) {
+    if (insertError) {
+      console.error("Contact request insert error:", insertError);
       return NextResponse.json(
         { error: "Failed to deliver contact request." },
         { status: 500 }

@@ -14,6 +14,9 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "CAnnect — India's Chartered Accountant Community Platform",
   description: "Connect with Chartered Accountants across India. List practicing firms, showcase specialized tax/compliance expertise, access latest updates, and network professionally.",
+  icons: {
+    icon: '/icon.png?v=2',
+  },
 };
 
 export default function RootLayout({

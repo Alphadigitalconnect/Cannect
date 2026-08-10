@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { readDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import FadeIn from "@/components/FadeIn";
 import StaggeredFadeIn from "@/components/StaggeredFadeIn";
 
@@ -8,18 +8,26 @@ export const revalidate = 0;
 
 export const dynamic = 'force-dynamic';
 
-export default function AboutPage() {
-  const db = readDb();
-  
+export default async function AboutPage() {
   // Calculate dynamic stats
-  const registeredFirmsCount = db.firms.length;
-  const verifiedCAsCount = db.users.length;
+  const { count: registeredFirmsCount } = await supabase
+    .from('firms')
+    .select('*', { count: 'exact', head: true });
+    
+  const { count: verifiedCAsCount } = await supabase
+    .from('users')
+    .select('*', { count: 'exact', head: true });
+    
   // Get unique cities
-  const uniqueCities = Array.from(new Set(db.firms.map((f) => f.city.trim())));
+  const { data: firmsData } = await supabase.from('firms').select('city');
+  const uniqueCities = Array.from(new Set((firmsData || []).map((f: any) => (f.city || '').trim()).filter(Boolean)));
   const citiesCount = uniqueCities.length;
-  const totalCpeHours = db.events
-    .filter((e) => e.status === "Past")
-    .reduce((sum, e) => sum + e.cpeHours, 0);
+  
+  const { data: eventsData } = await supabase
+    .from('events')
+    .select('cpeHours')
+    .eq('status', 'Past');
+  const totalCpeHours = (eventsData || []).reduce((sum: number, e: any) => sum + (e.cpeHours || 0), 0);
 
   return (
     <div className="bg-slate-50 min-h-screen pb-16">
@@ -81,19 +89,19 @@ export default function AboutPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="border border-white/10 rounded p-3 bg-white/10 backdrop-blur-xs text-center">
                   <span className="block text-2xl font-serif font-bold text-white">
-                    {registeredFirmsCount}+
+                    {registeredFirmsCount || 0}+
                   </span>
                   <span className="text-[10px] text-sky-100 font-medium font-sans block">CA Firms Listed</span>
                 </div>
                 <div className="border border-white/10 rounded p-3 bg-white/10 backdrop-blur-xs text-center">
                   <span className="block text-2xl font-serif font-bold text-white">
-                    {verifiedCAsCount}+
+                    {verifiedCAsCount || 0}+
                   </span>
                   <span className="text-[10px] text-sky-100 font-medium font-sans block">CA Members</span>
                 </div>
                 <div className="border border-white/10 rounded p-3 bg-white/10 backdrop-blur-xs text-center col-span-2">
                   <span className="block text-2xl font-serif font-bold text-white">
-                    {citiesCount}+
+                    {citiesCount || 0}+
                   </span>
                   <span className="text-[10px] text-sky-100 font-medium font-sans block">Indian Cities Active</span>
                 </div>

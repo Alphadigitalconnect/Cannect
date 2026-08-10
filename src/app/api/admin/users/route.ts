@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   try {
@@ -11,20 +11,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const db = readDb();
-    const currentUser = db.users.find(u => u.id === userId);
+    const { data: currentUser, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
 
-    if (!currentUser || currentUser.role !== "admin") {
+    if (userError || !currentUser || currentUser.role !== "admin") {
       return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
     }
 
+    const { data: users } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    const { data: firms } = await supabase.from('firms').select('*');
+
     // Return users, hiding passwords
-    const users = db.users.map(u => {
+    const allUsers = (users || []).map(u => {
       const { password, ...safeUser } = u;
       return safeUser;
     });
 
-    return NextResponse.json({ users, firms: db.firms }, { status: 200 });
+    return NextResponse.json({ users: allUsers, firms: firms || [] }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
@@ -43,31 +49,31 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
     }
 
-    const db = readDb();
-    const adminUser = db.users.find(u => u.id === adminId);
+    const { data: adminUser, error: adminError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', adminId)
+      .maybeSingle();
 
-    if (!adminUser || adminUser.role !== "admin") {
+    if (adminError || !adminUser || adminUser.role !== "admin") {
       return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
     }
 
-    const targetUser = db.users.find(u => u.id === targetUserId);
-    if (!targetUser) {
-      return NextResponse.json({ error: "Target user not found" }, { status: 404 });
-    }
-
     // Update User
-    targetUser.status = status;
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ status })
+      .eq('id', targetUserId);
+
+    if (updateError) {
+      return NextResponse.json({ error: "Failed to update user or user not found" }, { status: 404 });
+    }
 
     // Also update associated Firm if it exists
-    const targetFirm = db.firms.find(f => f.userId === targetUserId);
-    if (targetFirm) {
-      targetFirm.status = status;
-    }
-
-    const success = writeDb(db);
-    if (!success) {
-      return NextResponse.json({ error: "Failed to persist changes" }, { status: 500 });
-    }
+    await supabase
+      .from('firms')
+      .update({ status })
+      .eq('userId', targetUserId);
 
     return NextResponse.json({ message: `User status updated to ${status}` }, { status: 200 });
   } catch (error) {

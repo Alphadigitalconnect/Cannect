@@ -1,17 +1,22 @@
 import React from "react";
 import Link from "next/link";
-import { readDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import FadeIn from "@/components/FadeIn";
 import StaggeredFadeIn from "@/components/StaggeredFadeIn";
 import CountUpNumber from "@/components/CountUpNumber";
 
 export const dynamic = 'force-dynamic';
 
-export default function HomePage() {
-  const db = readDb();
-  
-  const approvedFirmsCount = db.firms.filter((f: any) => f.status === 'approved').length;
-  const approvedUsersCount = db.users.filter((u: any) => u.status === 'approved').length;
+export default async function HomePage() {
+  const { count: approvedFirmsCount } = await supabase
+    .from('firms')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'approved');
+
+  const { count: approvedUsersCount } = await supabase
+    .from('users')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'approved');
 
   return (
     <div className="bg-slate-50 min-h-screen">
@@ -68,13 +73,13 @@ export default function HomePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="border border-white/10 rounded p-4 bg-white/10 backdrop-blur-xs">
                       <span className="block text-2xl font-serif font-bold text-white">
-                        <CountUpNumber end={approvedFirmsCount} />+
+                        <CountUpNumber end={approvedFirmsCount || 0} />+
                       </span>
                       <span className="text-xs text-sky-100 font-sans">Registered Firms</span>
                     </div>
                     <div className="border border-white/10 rounded p-4 bg-white/10 backdrop-blur-xs">
                       <span className="block text-2xl font-serif font-bold text-white">
-                        <CountUpNumber end={approvedUsersCount} />+
+                        <CountUpNumber end={approvedUsersCount || 0} />+
                       </span>
                       <span className="text-xs text-sky-100 font-sans">Verified Members</span>
                     </div>

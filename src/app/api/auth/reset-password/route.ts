@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(request: Request) {
   try {
@@ -13,40 +13,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Password must be at least 6 characters long." }, { status: 400 });
     }
 
-    const db = readDb();
-    
-    // Find the token
-    const tokenIndex = db.passwordResetTokens.findIndex(t => t.token === token);
-    if (tokenIndex === -1) {
+    // Find the token in Supabase
+    const { data: resetToken, error: tokenError } = await supabase
+      .from('password_reset_tokens')
+      .select('*')
+      .eq('token', token)
+      .maybeSingle();
+
+    if (tokenError || !resetToken) {
       return NextResponse.json({ error: "Invalid or expired token." }, { status: 400 });
     }
-
-    const resetToken = db.passwordResetTokens[tokenIndex];
 
     // Check if token has expired
     if (new Date(resetToken.expiresAt) < new Date()) {
       // Remove expired token
-      db.passwordResetTokens.splice(tokenIndex, 1);
-      writeDb(db);
+      await supabase
+        .from('password_reset_tokens')
+        .delete()
+        .eq('id', resetToken.id);
+        
       return NextResponse.json({ error: "Token has expired. Please request a new one." }, { status: 400 });
     }
 
-    // Find the user
-    const userIndex = db.users.findIndex(u => u.email.toLowerCase() === resetToken.email.toLowerCase());
-    if (userIndex === -1) {
-      return NextResponse.json({ error: "User not found." }, { status: 404 });
-    }
-
     // Update password
-    db.users[userIndex].password = newPassword;
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password: newPassword }) // In a real app, hash this!
+      .eq('email', resetToken.email.toLowerCase());
 
-    // Remove the used token
-    db.passwordResetTokens.splice(tokenIndex, 1);
-
-    const success = writeDb(db);
-    if (!success) {
+    if (updateError) {
+      console.error("Password update error:", updateError);
       return NextResponse.json({ error: "Failed to reset password." }, { status: 500 });
     }
+
+    // Remove the used token
+    await supabase
+      .from('password_reset_tokens')
+      .delete()
+      .eq('id', resetToken.id);
 
     return NextResponse.json({ message: "Password has been successfully reset." }, { status: 200 });
 

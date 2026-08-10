@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb, PasswordResetToken } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import crypto from "crypto";
 
 export async function POST(request: Request) {
@@ -10,12 +10,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email is required." }, { status: 400 });
     }
 
-    const db = readDb();
-    
-    // Check if user exists
-    const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
-    
-    if (!user) {
+    // Check if user exists in Supabase
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+      
+    if (userError || !user) {
       // Return 200 even if user doesn't exist to prevent email enumeration
       return NextResponse.json({ message: "If an account exists, a password reset link has been sent." }, { status: 200 });
     }
@@ -27,20 +29,25 @@ export async function POST(request: Request) {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
 
-    const resetToken: PasswordResetToken = {
-      token,
-      email: user.email,
-      expiresAt: expiresAt.toISOString(),
-    };
-
     // Remove any existing tokens for this email to prevent spam
-    db.passwordResetTokens = db.passwordResetTokens.filter(t => t.email.toLowerCase() !== user.email.toLowerCase());
-    
+    await supabase
+      .from('password_reset_tokens')
+      .delete()
+      .eq('email', user.email.toLowerCase());
+      
     // Save new token
-    db.passwordResetTokens.push(resetToken);
-    
-    const success = writeDb(db);
-    if (!success) {
+    const { error: insertError } = await supabase
+      .from('password_reset_tokens')
+      .insert([
+        {
+          token,
+          email: user.email.toLowerCase(),
+          expiresAt: expiresAt.toISOString()
+        }
+      ]);
+      
+    if (insertError) {
+      console.error("Token insert error:", insertError);
       return NextResponse.json({ error: "Failed to process request." }, { status: 500 });
     }
 

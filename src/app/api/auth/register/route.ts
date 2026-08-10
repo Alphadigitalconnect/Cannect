@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(request: Request) {
   try {
@@ -35,11 +35,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = readDb();
-    
     // Check if user already exists
-    const emailExists = db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase());
-    if (emailExists) {
+    const { data: existingUser, error: existError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+
+    if (existingUser) {
       return NextResponse.json(
         { error: "A user with this email address already exists." },
         { status: 409 }
@@ -47,69 +50,83 @@ export async function POST(request: Request) {
     }
 
     // Check if membership number already registered
-    const membershipExists = db.users.some((u: any) => u.membershipNo === membershipNo);
-    if (membershipExists) {
+    const { data: existingMem, error: memError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('membershipNo', membershipNo)
+      .maybeSingle();
+
+    if (existingMem) {
       return NextResponse.json(
         { error: "This ICAI membership number is already registered." },
         { status: 409 }
       );
     }
 
-    const userId = "u_" + Date.now();
-    const firmId = "f_" + Date.now();
-
     const isAdmin = email.toLowerCase() === "admin@cannect.com";
-    const status: "approved" | "pending" = isAdmin ? "approved" : "pending";
-    const role: "admin" | "user" = isAdmin ? "admin" : "user";
+    const status = isAdmin ? "approved" : "pending";
+    const role = isAdmin ? "admin" : "user";
 
-    // Create User record
-    const newUser = {
-      id: userId,
-      email,
-      password,
-      caName,
-      membershipNo,
-      firmName: hasCop ? firmName : undefined,
-      specialisations: specialisations || [],
-      city: hasCop ? city : undefined,
-      state: hasCop ? state : undefined,
-      yearsOfPractice: Number(yearsOfPractice) || 1,
-      phone: phone || "",
-      bio: bio || "",
-      hasCop: !!hasCop,
-      otherQualifications: otherQualifications || "",
-      status,
-      role
-    };
+    // Insert User record
+    const { data: newUser, error: userError } = await supabase
+      .from('users')
+      .insert([
+        {
+          email: email.toLowerCase(),
+          password, // In a real app, hash this with bcrypt before saving!
+          caName,
+          membershipNo,
+          firmName: hasCop ? firmName : null,
+          specialisations: specialisations || [],
+          city: hasCop ? city : '',
+          state: hasCop ? state : '',
+          yearsOfPractice: Number(yearsOfPractice) || 1,
+          phone: phone || "",
+          bio: bio || "",
+          status,
+          role
+        }
+      ])
+      .select()
+      .single();
 
-    db.users.push(newUser);
-
-    // Create Firm record only if user has CoP
-    if (hasCop) {
-      const newFirm = {
-        id: firmId,
-        userId,
-        caName,
-        membershipNo,
-        firmName,
-        specialisations: specialisations || [],
-        city,
-        state,
-        yearsOfPractice: Number(yearsOfPractice) || 1,
-        phone: phone || "",
-        email,
-        bio: bio || "",
-        status
-      };
-      db.firms.push(newFirm);
-    }
-
-    const success = writeDb(db);
-    if (!success) {
+    if (userError || !newUser) {
+      console.error("User insert error:", userError);
       return NextResponse.json(
-        { error: "Failed to persist registration details." },
+        { error: "Failed to persist user details." },
         { status: 500 }
       );
+    }
+
+    // Insert Firm record only if user has CoP
+    if (hasCop) {
+      const { error: firmError } = await supabase
+        .from('firms')
+        .insert([
+          {
+            userId: newUser.id,
+            caName,
+            membershipNo,
+            firmName,
+            specialisations: specialisations || [],
+            city,
+            state,
+            yearsOfPractice: Number(yearsOfPractice) || 1,
+            phone: phone || "",
+            email: email.toLowerCase(),
+            bio: bio || "",
+            status
+          }
+        ]);
+
+      if (firmError) {
+        console.error("Firm insert error:", firmError);
+        // Even if firm fails, user was created, but we should return an error
+        return NextResponse.json(
+          { error: "User created but failed to persist firm details." },
+          { status: 500 }
+        );
+      }
     }
 
     // Exclude password from return payload

@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 // GET all firms (used for the directory)
 export async function GET() {
   try {
-    const db = readDb();
+    const { data: firms, error: firmsError } = await supabase.from('firms').select('*');
+    if (firmsError) throw firmsError;
+
+    const { data: connections, error: connError } = await supabase
+      .from('connections')
+      .select('senderId, receiverId')
+      .eq('status', 'accepted');
+    if (connError) throw connError;
+
     // Map firms to include count of accepted connections
-    const firmsWithConnections = db.firms.map((firm) => {
-      const connectionCount = db.connections.filter(
-        (c) =>
-          c.status === "accepted" &&
-          (c.senderId === firm.userId || c.receiverId === firm.userId)
+    const firmsWithConnections = (firms || []).map((firm) => {
+      const connectionCount = (connections || []).filter(
+        (c) => c.senderId === firm.userId || c.receiverId === firm.userId
       ).length;
       return {
         ...firm,
@@ -51,63 +57,44 @@ export async function PUT(request: Request) {
       );
     }
 
-    const db = readDb();
-    
-    // Find user and firm
-    const userIndex = db.users.findIndex((u) => u.id === userId);
-    const firmIndex = db.firms.findIndex((f) => f.userId === userId);
+    // Prepare update payload (strip undefined)
+    const updatePayload: any = {};
+    if (caName !== undefined) updatePayload.caName = caName;
+    if (firmName !== undefined) updatePayload.firmName = firmName;
+    if (specialisations !== undefined) updatePayload.specialisations = specialisations;
+    if (city !== undefined) updatePayload.city = city;
+    if (state !== undefined) updatePayload.state = state;
+    if (area !== undefined) updatePayload.area = area;
+    if (yearsOfPractice !== undefined) updatePayload.yearsOfPractice = Number(yearsOfPractice);
+    if (phone !== undefined) updatePayload.phone = phone;
+    if (bio !== undefined) updatePayload.bio = bio;
+    if (avatarUrl !== undefined) updatePayload.avatarUrl = avatarUrl;
+    if (isPrivate !== undefined) updatePayload.isPrivate = isPrivate;
+    if (experience !== undefined) updatePayload.experience = experience;
 
-    if (userIndex === -1 || firmIndex === -1) {
+    // Update User record
+    const { data: updatedUser, error: userError } = await supabase
+      .from('users')
+      .update(updatePayload)
+      .eq('id', userId)
+      .select()
+      .maybeSingle();
+
+    if (userError || !updatedUser) {
       return NextResponse.json(
-        { error: "Profile not found." },
+        { error: "Profile not found or failed to update user." },
         { status: 404 }
       );
     }
 
-    // Update User record
-    db.users[userIndex] = {
-      ...db.users[userIndex],
-      caName: caName || db.users[userIndex].caName,
-      firmName: firmName || db.users[userIndex].firmName,
-      specialisations: specialisations || db.users[userIndex].specialisations,
-      city: city || db.users[userIndex].city,
-      state: state || db.users[userIndex].state,
-      area: area !== undefined ? area : (db.users[userIndex] as any).area,
-      yearsOfPractice: yearsOfPractice !== undefined ? Number(yearsOfPractice) : db.users[userIndex].yearsOfPractice,
-      phone: phone !== undefined ? phone : db.users[userIndex].phone,
-      bio: bio !== undefined ? bio : db.users[userIndex].bio,
-      avatarUrl: avatarUrl !== undefined ? avatarUrl : db.users[userIndex].avatarUrl,
-      isPrivate: isPrivate !== undefined ? isPrivate : (db.users[userIndex] as any).isPrivate,
-      experience: experience !== undefined ? experience : (db.users[userIndex] as any).experience
-    };
-
     // Update Firm record
-    db.firms[firmIndex] = {
-      ...db.firms[firmIndex],
-      caName: caName || db.firms[firmIndex].caName,
-      firmName: firmName || db.firms[firmIndex].firmName,
-      specialisations: specialisations || db.firms[firmIndex].specialisations,
-      city: city || db.firms[firmIndex].city,
-      state: state || db.firms[firmIndex].state,
-      area: area !== undefined ? area : (db.firms[firmIndex] as any).area,
-      yearsOfPractice: yearsOfPractice !== undefined ? Number(yearsOfPractice) : db.firms[firmIndex].yearsOfPractice,
-      phone: phone !== undefined ? phone : db.firms[firmIndex].phone,
-      bio: bio !== undefined ? bio : db.firms[firmIndex].bio,
-      avatarUrl: avatarUrl !== undefined ? avatarUrl : db.firms[firmIndex].avatarUrl,
-      isPrivate: isPrivate !== undefined ? isPrivate : (db.firms[firmIndex] as any).isPrivate,
-      experience: experience !== undefined ? experience : (db.firms[firmIndex] as any).experience
-    };
-
-    const success = writeDb(db);
-    if (!success) {
-      return NextResponse.json(
-        { error: "Failed to save profile changes." },
-        { status: 500 }
-      );
-    }
+    await supabase
+      .from('firms')
+      .update(updatePayload)
+      .eq('userId', userId);
 
     // Exclude password from return payload
-    const { password: _, ...safeUser } = db.users[userIndex];
+    const { password: _, ...safeUser } = updatedUser;
 
     return NextResponse.json(
       { message: "Profile updated successfully.", user: safeUser },

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 // POST to toggle verification status of a CA user
 export async function POST(request: Request) {
@@ -13,45 +13,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = readDb();
-    
-    // Find user
-    const userIndex = db.users.findIndex((u) => u.id === userId);
-    if (userIndex === -1) {
+    const status = isVerified ? 'approved' : 'pending';
+
+    // Update User status in Supabase
+    const { error: userError } = await supabase
+      .from('users')
+      .update({ status })
+      .eq('id', userId);
+
+    if (userError) {
       return NextResponse.json(
-        { error: "User not found." },
+        { error: "User not found or failed to update." },
         { status: 404 }
       );
     }
 
-    // Set custom parameter inside user object to track verification state
-    // Let's add an optional property verified: boolean
-    const updatedUser = {
-      ...db.users[userIndex],
-      verified: isVerified
-    } as any;
-    db.users[userIndex] = updatedUser;
-
     // Sync corresponding firm record verification
-    const firmIndex = db.firms.findIndex((f) => f.userId === userId);
-    if (firmIndex !== -1) {
-      const updatedFirm = {
-        ...db.firms[firmIndex],
-        verified: isVerified
-      } as any;
-      db.firms[firmIndex] = updatedFirm;
-    }
-
-    const success = writeDb(db);
-    if (!success) {
-      return NextResponse.json(
-        { error: "Failed to persist database updates." },
-        { status: 500 }
-      );
-    }
+    await supabase
+      .from('firms')
+      .update({ status })
+      .eq('userId', userId);
 
     return NextResponse.json(
-      { message: `CA status successfully updated to ${isVerified ? "Verified" : "Pending"}.`, user: updatedUser },
+      { message: `CA status successfully updated to ${isVerified ? "Verified" : "Pending"}.` },
       { status: 200 }
     );
   } catch (error) {

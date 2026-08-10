@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
-import { readDb, writeDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   try {
-    const db = readDb();
+    const { data: users, error: usersError } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+    const { data: firms, error: firmsError } = await supabase.from('firms').select('*');
 
-    // Return all users
-    const allUsers = db.users.map(u => {
+    if (usersError || firmsError) {
+      throw new Error("Failed to fetch approvals data");
+    }
+
+    // Filter out passwords
+    const allUsers = (users || []).map(u => {
       const { password, ...safeUser } = u;
       return safeUser;
     });
 
-    return NextResponse.json({ users: allUsers, firms: db.firms }, { status: 200 });
+    return NextResponse.json({ users: allUsers, firms: firms || [] }, { status: 200 });
   } catch (error) {
     console.error("Admin Approvals GET Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
@@ -31,26 +36,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
     }
 
-    const db = readDb();
-
-    const targetUser = db.users.find(u => u.id === targetUserId);
-    if (!targetUser) {
-      return NextResponse.json({ error: "Target user not found" }, { status: 404 });
-    }
-
     // Update User
-    targetUser.status = status;
+    const { error: userError } = await supabase
+      .from('users')
+      .update({ status })
+      .eq('id', targetUserId);
+
+    if (userError) {
+      console.error("User approval update error:", userError);
+      return NextResponse.json({ error: "Target user not found or failed to update" }, { status: 404 });
+    }
 
     // Also update associated Firm if it exists
-    const targetFirm = db.firms.find(f => f.userId === targetUserId);
-    if (targetFirm) {
-      targetFirm.status = status;
-    }
-
-    const success = writeDb(db);
-    if (!success) {
-      return NextResponse.json({ error: "Failed to persist changes" }, { status: 500 });
-    }
+    await supabase
+      .from('firms')
+      .update({ status })
+      .eq('userId', targetUserId);
 
     return NextResponse.json({ message: `User status successfully updated to ${status}` }, { status: 200 });
   } catch (error) {

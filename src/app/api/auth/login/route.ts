@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(request: Request) {
   try {
@@ -12,14 +12,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = readDb();
-    
-    // Find user
-    const user = db.users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
+    // Find user in Supabase
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .eq('password', password) // In a real app, you would use bcrypt to compare hashes!
+      .maybeSingle();
 
-    if (!user) {
+    if (error || !user) {
       return NextResponse.json(
         { error: "Invalid professional email or password." },
         { status: 401 }
