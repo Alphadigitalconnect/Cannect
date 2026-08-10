@@ -14,6 +14,12 @@ function ensureDataDir() {
   }
 }
 
+export interface PasswordResetToken {
+  token: string;
+  email: string;
+  expiresAt: string;
+}
+
 export interface Experience {
   companyName: string;
   fromYear?: string;
@@ -160,6 +166,7 @@ export interface DbSchema {
   connections: Connection[];
   messages: Message[];
   chatGroups: ChatGroup[];
+  passwordResetTokens: PasswordResetToken[];
 }
 
 export function readDb(): DbSchema {
@@ -176,7 +183,8 @@ export function readDb(): DbSchema {
         posts: [],
         connections: [],
         messages: [],
-        chatGroups: []
+        chatGroups: [],
+        passwordResetTokens: []
       };
       fs.writeFileSync(dbPath, JSON.stringify(initialSchema, null, 2), "utf-8");
       return initialSchema;
@@ -190,6 +198,7 @@ export function readDb(): DbSchema {
     if (!parsed.contactRequests) parsed.contactRequests = [];
     if (!parsed.messages) parsed.messages = [];
     if (!parsed.chatGroups) parsed.chatGroups = [];
+    if (!parsed.passwordResetTokens) parsed.passwordResetTokens = [];
     
     return parsed as DbSchema;
   } catch (error) {
@@ -204,7 +213,8 @@ export function readDb(): DbSchema {
       posts: [],
       connections: [],
       messages: [],
-      chatGroups: []
+      chatGroups: [],
+      passwordResetTokens: []
     };
   }
 }

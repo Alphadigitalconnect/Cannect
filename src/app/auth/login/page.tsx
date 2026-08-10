@@ -94,16 +94,12 @@ export default function LoginPage() {
               <label className="block text-xs font-bold text-navy uppercase tracking-wider">
                 Password
               </label>
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert("Please contact support at support@cannect.in to reset your password.");
-                }}
+              <Link
+                href="/auth/forgot-password"
                 className="text-[10px] text-slate-500 hover:text-skyblue hover:underline font-medium"
               >
                 Forgot Password?
-              </a>
+              </Link>
             </div>
             <input
               type="password"
