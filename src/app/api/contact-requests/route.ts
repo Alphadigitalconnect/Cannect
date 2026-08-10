@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { readDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   try {
@@ -11,22 +11,29 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User ID is required" }, { status: 400 });
     }
 
-    const db = readDb();
-    
     // Find the firm belonging to this user
-    const firm = db.firms.find((f) => f.userId === userId);
-    
+    const { data: firm, error: firmError } = await supabase
+      .from("firms")
+      .select("id")
+      .eq("userId", userId)
+      .maybeSingle();
+
+    if (firmError) throw firmError;
+
     if (!firm) {
       return NextResponse.json({ requests: [] }, { status: 200 });
     }
 
-    // Filter contact requests for this firm
-    const requests = db.contactRequests.filter((req) => req.firmId === firm.id);
-    
-    // Sort by newest first
-    requests.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    // Fetch contact requests for this firm, newest first
+    const { data: requests, error: reqError } = await supabase
+      .from("contact_requests")
+      .select("*")
+      .eq("firmId", firm.id)
+      .order("timestamp", { ascending: false });
 
-    return NextResponse.json({ requests }, { status: 200 });
+    if (reqError) throw reqError;
+
+    return NextResponse.json({ requests: requests || [] }, { status: 200 });
   } catch (error) {
     console.error("GET Contact Requests Error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

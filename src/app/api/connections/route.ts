@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { readDb, writeDb, Connection } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 // GET connections & requests for a user
 export async function GET(request: Request) {
@@ -12,60 +12,62 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "User ID is required." }, { status: 400 });
     }
 
-    const db = readDb();
-    
-    // Find incoming pending, outgoing pending, and accepted connections
+    // Fetch all connections involving this user
+    const { data: connections, error } = await supabase
+      .from("connections")
+      .select("*")
+      .or(`senderId.eq.${userId},receiverId.eq.${userId}`);
+
+    if (error) throw error;
+
+    // Get all unique peer user IDs
+    const peerIds = new Set<string>();
+    (connections || []).forEach((c) => {
+      if (c.senderId !== userId) peerIds.add(c.senderId);
+      if (c.receiverId !== userId) peerIds.add(c.receiverId);
+    });
+
+    // Fetch peer user profiles in bulk
+    let peerProfiles: Record<string, any> = {};
+    if (peerIds.size > 0) {
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, caName, firmName, city, state, avatarUrl, email, phone")
+        .in("id", Array.from(peerIds));
+      (users || []).forEach((u) => {
+        peerProfiles[u.id] = u;
+      });
+    }
+
     const incoming: any[] = [];
     const outgoing: any[] = [];
     const accepted: any[] = [];
 
-    db.connections.forEach((conn) => {
-      if (conn.senderId === userId) {
-        // Outgoing request from current user
-        const receiver = db.users.find((u) => u.id === conn.receiverId);
-        if (receiver) {
-          const detail = {
-            id: conn.id,
-            status: conn.status,
-            userId: receiver.id,
-            caName: receiver.caName,
-            firmName: receiver.firmName,
-            city: receiver.city,
-            state: receiver.state,
-            avatarUrl: receiver.avatarUrl || "",
-            email: conn.status === "accepted" ? receiver.email : undefined,
-            phone: conn.status === "accepted" ? receiver.phone : undefined,
-            timestamp: conn.timestamp
-          };
-          if (conn.status === "pending") {
-            outgoing.push(detail);
-          } else if (conn.status === "accepted") {
-            accepted.push(detail);
-          }
-        }
-      } else if (conn.receiverId === userId) {
-        // Incoming request to current user
-        const sender = db.users.find((u) => u.id === conn.senderId);
-        if (sender) {
-          const detail = {
-            id: conn.id,
-            status: conn.status,
-            userId: sender.id,
-            caName: sender.caName,
-            firmName: sender.firmName,
-            city: sender.city,
-            state: sender.state,
-            avatarUrl: sender.avatarUrl || "",
-            email: conn.status === "accepted" ? sender.email : undefined,
-            phone: conn.status === "accepted" ? sender.phone : undefined,
-            timestamp: conn.timestamp
-          };
-          if (conn.status === "pending") {
-            incoming.push(detail);
-          } else if (conn.status === "accepted") {
-            accepted.push(detail);
-          }
-        }
+    (connections || []).forEach((conn) => {
+      const isSender = conn.senderId === userId;
+      const peerId = isSender ? conn.receiverId : conn.senderId;
+      const peer = peerProfiles[peerId];
+      if (!peer) return;
+
+      const detail = {
+        id: conn.id,
+        status: conn.status,
+        userId: peer.id,
+        caName: peer.caName,
+        firmName: peer.firmName,
+        city: peer.city,
+        state: peer.state,
+        avatarUrl: peer.avatarUrl || "",
+        email: conn.status === "accepted" ? peer.email : undefined,
+        phone: conn.status === "accepted" ? peer.phone : undefined,
+        timestamp: conn.timestamp,
+      };
+
+      if (conn.status === "accepted") {
+        accepted.push(detail);
+      } else if (conn.status === "pending") {
+        if (isSender) outgoing.push(detail);
+        else incoming.push(detail);
       }
     });
 
@@ -82,8 +84,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action, senderId, receiverId, connectionId, status } = body;
 
-    const db = readDb();
-
     // ACTION: Send request
     if (action === "request") {
       if (!senderId || !receiverId) {
@@ -95,34 +95,36 @@ export async function POST(request: Request) {
       }
 
       // Check if connection already exists
-      const existing = db.connections.find(
-        (c) =>
-          (c.senderId === senderId && c.receiverId === receiverId) ||
-          (c.senderId === receiverId && c.receiverId === senderId)
-      );
+      const { data: existing } = await supabase
+        .from("connections")
+        .select("id")
+        .or(
+          `and(senderId.eq.${senderId},receiverId.eq.${receiverId}),and(senderId.eq.${receiverId},receiverId.eq.${senderId})`
+        )
+        .maybeSingle();
 
       if (existing) {
         return NextResponse.json({ error: "Connection request already exists between you." }, { status: 400 });
       }
 
-      const newConnection: Connection = {
+      const newConnection = {
         id: "conn_" + Date.now(),
         senderId,
         receiverId,
         status: "pending",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
-      db.connections.push(newConnection);
-      writeDb(db);
+      const { data, error } = await supabase.from("connections").insert([newConnection]).select().single();
+      if (error) throw error;
 
       return NextResponse.json(
-        { message: "Connection request sent successfully.", connection: newConnection },
+        { message: "Connection request sent successfully.", connection: data },
         { status: 201 }
       );
     }
 
-    // ACTION: Respond to request
+    // ACTION: Respond to request (accept/reject)
     if (action === "respond") {
       if (!connectionId || !status) {
         return NextResponse.json({ error: "Connection ID and status are required." }, { status: 400 });
@@ -132,16 +134,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Status must be 'accepted' or 'rejected'." }, { status: 400 });
       }
 
-      const connIndex = db.connections.findIndex((c) => c.id === connectionId);
-      if (connIndex === -1) {
+      const { data, error } = await supabase
+        .from("connections")
+        .update({ status })
+        .eq("id", connectionId)
+        .select()
+        .maybeSingle();
+
+      if (error || !data) {
         return NextResponse.json({ error: "Connection request not found." }, { status: 404 });
       }
 
-      db.connections[connIndex].status = status;
-      writeDb(db);
-
       return NextResponse.json(
-        { message: `Request successfully ${status}.`, connection: db.connections[connIndex] },
+        { message: `Request successfully ${status}.`, connection: data },
         { status: 200 }
       );
     }
@@ -153,23 +158,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "User IDs are required." }, { status: 400 });
       }
 
-      const connIndex = db.connections.findIndex(
-        (c) =>
-          (c.senderId === userId && c.receiverId === peerUserId) ||
-          (c.senderId === peerUserId && c.receiverId === userId)
-      );
+      const { error } = await supabase
+        .from("connections")
+        .delete()
+        .or(
+          `and(senderId.eq.${userId},receiverId.eq.${peerUserId}),and(senderId.eq.${peerUserId},receiverId.eq.${userId})`
+        );
 
-      if (connIndex === -1) {
-        return NextResponse.json({ error: "Connection not found." }, { status: 404 });
-      }
+      if (error) throw error;
 
-      db.connections.splice(connIndex, 1);
-      writeDb(db);
-
-      return NextResponse.json(
-        { message: "Connection successfully removed." },
-        { status: 200 }
-      );
+      return NextResponse.json({ message: "Connection successfully removed." }, { status: 200 });
     }
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });

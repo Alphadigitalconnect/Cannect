@@ -1,15 +1,18 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { readDb, writeDb, Post, PostComment } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
-// GET all posts
+// GET all posts (newest first)
 export async function GET() {
   try {
-    const db = readDb();
-    // Sort posts chronologically descending
-    const posts = [...db.posts].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    return NextResponse.json({ posts }, { status: 200 });
+    const { data: posts, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("timestamp", { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json({ posts: posts || [] }, { status: 200 });
   } catch (error) {
     console.error("GET Posts Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
@@ -20,15 +23,20 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, userId, content, imageUrl, postId, commentText } = body;
+    const { action, userId, content, imageUrl, postId, commentText, commentId } = body;
 
     if (!userId) {
       return NextResponse.json({ error: "User ID is required." }, { status: 400 });
     }
 
-    const db = readDb();
-    const user = db.users.find((u) => u.id === userId);
-    if (!user) {
+    // Fetch user info
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("caName, firmName, avatarUrl")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userError || !user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
@@ -38,126 +46,145 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Post content cannot be empty." }, { status: 400 });
       }
 
-      const newPost: Post = {
+      const newPost = {
         id: "post_" + Date.now(),
         userId,
         caName: user.caName,
         firmName: user.firmName || "Independent Practitioner",
         avatarUrl: user.avatarUrl || "",
         content,
-        imageUrl: imageUrl || undefined,
+        imageUrl: imageUrl || null,
         likes: [],
         comments: [],
         timestamp: new Date().toISOString(),
       };
 
-      db.posts.push(newPost);
-      writeDb(db);
-      return NextResponse.json({ message: "Post created successfully.", post: newPost }, { status: 201 });
+      const { data, error } = await supabase.from("posts").insert([newPost]).select().single();
+      if (error) throw error;
+
+      return NextResponse.json({ message: "Post created successfully.", post: data }, { status: 201 });
     }
 
     // ACTION: Like/Unlike post
     if (action === "like") {
-      if (!postId) {
-        return NextResponse.json({ error: "Post ID is required to like." }, { status: 400 });
-      }
+      if (!postId) return NextResponse.json({ error: "Post ID is required." }, { status: 400 });
 
-      const postIndex = db.posts.findIndex((p) => p.id === postId);
-      if (postIndex === -1) {
-        return NextResponse.json({ error: "Post not found." }, { status: 404 });
-      }
+      const { data: post, error: fetchError } = await supabase
+        .from("posts")
+        .select("likes")
+        .eq("id", postId)
+        .maybeSingle();
 
-      const post = db.posts[postIndex];
-      const likeIndex = post.likes.indexOf(userId);
+      if (fetchError || !post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
 
-      if (likeIndex > -1) {
-        // Unlike
-        post.likes.splice(likeIndex, 1);
-      } else {
-        // Like
-        post.likes.push(userId);
-      }
+      const likes: string[] = post.likes || [];
+      const likeIndex = likes.indexOf(userId);
+      if (likeIndex > -1) likes.splice(likeIndex, 1);
+      else likes.push(userId);
 
-      db.posts[postIndex] = post;
-      writeDb(db);
-      return NextResponse.json({ message: "Like updated successfully.", post }, { status: 200 });
+      const { data: updated, error: updateError } = await supabase
+        .from("posts")
+        .update({ likes })
+        .eq("id", postId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      return NextResponse.json({ message: "Like updated.", post: updated }, { status: 200 });
     }
 
     // ACTION: Comment on post
     if (action === "comment") {
-      if (!postId) {
-        return NextResponse.json({ error: "Post ID is required to comment." }, { status: 400 });
-      }
+      if (!postId) return NextResponse.json({ error: "Post ID is required." }, { status: 400 });
       if (!commentText || commentText.trim() === "") {
         return NextResponse.json({ error: "Comment text cannot be empty." }, { status: 400 });
       }
 
-      const postIndex = db.posts.findIndex((p) => p.id === postId);
-      if (postIndex === -1) {
-        return NextResponse.json({ error: "Post not found." }, { status: 404 });
-      }
+      const { data: post, error: fetchError } = await supabase
+        .from("posts")
+        .select("comments")
+        .eq("id", postId)
+        .maybeSingle();
 
-      const newComment: PostComment = {
+      if (fetchError || !post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+
+      const comments = post.comments || [];
+      const newComment = {
         id: "comment_" + Date.now(),
         userId,
         caName: user.caName,
         content: commentText,
         timestamp: new Date().toISOString(),
       };
+      comments.push(newComment);
 
-      db.posts[postIndex].comments.push(newComment);
-      writeDb(db);
-      return NextResponse.json({ message: "Comment added successfully.", post: db.posts[postIndex] }, { status: 201 });
+      const { data: updated, error: updateError } = await supabase
+        .from("posts")
+        .update({ comments })
+        .eq("id", postId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      return NextResponse.json({ message: "Comment added.", post: updated }, { status: 201 });
     }
 
     // ACTION: Delete post
     if (action === "delete_post") {
-      if (!postId) {
-        return NextResponse.json({ error: "Post ID is required to delete." }, { status: 400 });
-      }
+      if (!postId) return NextResponse.json({ error: "Post ID is required." }, { status: 400 });
 
-      const postIndex = db.posts.findIndex((p) => p.id === postId);
-      if (postIndex === -1) {
-        return NextResponse.json({ error: "Post not found." }, { status: 404 });
-      }
+      const { data: post, error: fetchError } = await supabase
+        .from("posts")
+        .select("userId")
+        .eq("id", postId)
+        .maybeSingle();
 
-      const post = db.posts[postIndex];
-      if (post.userId !== userId) {
-        return NextResponse.json({ error: "Unauthorized to delete this post." }, { status: 403 });
-      }
+      if (fetchError || !post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+      if (post.userId !== userId) return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
 
-      db.posts.splice(postIndex, 1);
-      writeDb(db);
+      const { error: deleteError } = await supabase.from("posts").delete().eq("id", postId);
+      if (deleteError) throw deleteError;
+
       return NextResponse.json({ message: "Post deleted successfully." }, { status: 200 });
     }
 
     // ACTION: Delete comment
     if (action === "delete_comment") {
-      const { commentId } = body;
       if (!postId || !commentId) {
         return NextResponse.json({ error: "Post ID and Comment ID are required." }, { status: 400 });
       }
 
-      const postIndex = db.posts.findIndex((p) => p.id === postId);
-      if (postIndex === -1) {
-        return NextResponse.json({ error: "Post not found." }, { status: 404 });
-      }
+      const { data: post, error: fetchError } = await supabase
+        .from("posts")
+        .select("userId, comments")
+        .eq("id", postId)
+        .maybeSingle();
 
-      const post = db.posts[postIndex];
-      const commentIndex = post.comments.findIndex((c) => c.id === commentId);
-      if (commentIndex === -1) {
-        return NextResponse.json({ error: "Comment not found." }, { status: 404 });
-      }
+      if (fetchError || !post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
 
-      const comment = post.comments[commentIndex];
+      const comments = post.comments || [];
+      const commentIndex = comments.findIndex((c: any) => c.id === commentId);
+      if (commentIndex === -1) return NextResponse.json({ error: "Comment not found." }, { status: 404 });
+
+      const comment = comments[commentIndex];
       if (comment.userId !== userId && post.userId !== userId) {
-        return NextResponse.json({ error: "Unauthorized to delete this comment." }, { status: 403 });
+        return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
       }
 
-      post.comments.splice(commentIndex, 1);
-      db.posts[postIndex] = post;
-      writeDb(db);
-      return NextResponse.json({ message: "Comment deleted successfully.", post }, { status: 200 });
+      comments.splice(commentIndex, 1);
+
+      const { data: updated, error: updateError } = await supabase
+        .from("posts")
+        .update({ comments })
+        .eq("id", postId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      return NextResponse.json({ message: "Comment deleted.", post: updated }, { status: 200 });
     }
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });
