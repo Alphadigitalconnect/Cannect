@@ -537,6 +537,29 @@ function DashboardContent() {
     router.push("/");
   };
 
+  const handleDeleteAccount = async () => {
+    const confirmDelete = window.confirm(
+      "DANGER: Are you absolutely sure you want to permanently delete your account? All your connections, messages, and firm data will be erased. This action cannot be undone."
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        alert("Your account has been successfully deleted.");
+        handleLogout();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete account.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred while deleting your account.");
+    }
+  };
+
   const fetchInquiries = async (currentUserId: string) => {
     try {
       const res = await fetch(`/api/contact-requests?userId=${currentUserId}`);
@@ -1440,6 +1463,19 @@ function DashboardContent() {
                       <p className="text-xs text-slate-600 leading-relaxed text-justify whitespace-pre-line bg-slate-50 p-4 rounded border border-slate-150">
                         {user.bio || "No firm bio provided yet."}
                       </p>
+                    </div>
+
+                    <div className="pt-6 mt-6 border-t border-rose-100">
+                      <h3 className="text-sm font-bold text-rose-600 mb-2">Danger Zone</h3>
+                      <p className="text-xs text-slate-500 mb-3">
+                        Permanently delete your account and remove all your data from the directory.
+                      </p>
+                      <button
+                        onClick={handleDeleteAccount}
+                        className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 text-xs font-bold rounded shadow-sm transition-smooth"
+                      >
+                        Delete My Account
+                      </button>
                     </div>
                   </div>
                 ) : (

@@ -28,12 +28,6 @@ function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
-  
-  // OTP State (Now for Email instead of Phone)
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpValue, setOtpValue] = useState("");
-  const [isEmailVerified, setIsEmailVerified] = useState(false);
-  
   const [caName, setCaName] = useState("");
   const [membershipNo, setMembershipNo] = useState("");
   const [yearsOfPractice, setYearsOfPractice] = useState("1");
@@ -76,10 +70,6 @@ function RegisterForm() {
       }
       if (!email.includes("@")) {
         setError("Please enter a valid email address.");
-        return;
-      }
-      if (!isEmailVerified) {
-        setError("Please verify your email address with the OTP before proceeding.");
         return;
       }
       setStep(2);
@@ -232,71 +222,15 @@ function RegisterForm() {
               <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
                 Professional Email Address *
               </label>
-              <div className="flex space-x-2">
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. ca.name@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isEmailVerified}
-                  className={`w-full text-xs p-2.5 border rounded focus-ring ${isEmailVerified ? 'bg-green-50 border-green-200 text-green-700' : 'border-slate-200 bg-slate-50'}`}
-                />
-                {!isEmailVerified && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!email || !email.includes("@")) {
-                        setError("Please enter a valid email address.");
-                        return;
-                      }
-                      setOtpSent(true);
-                      setError("");
-                      alert(`MOCK EMAIL: A verification OTP (1234) has been sent to ${email}`);
-                    }}
-                    className="px-4 py-2 bg-slate-200 text-navy hover:bg-slate-300 text-xs font-bold rounded shadow-sm whitespace-nowrap transition-smooth"
-                  >
-                    Verify Email
-                  </button>
-                )}
-              </div>
-              {isEmailVerified && (
-                <p className="text-[10px] text-green-600 font-bold mt-1">✓ Email address verified successfully</p>
-              )}
+              <input
+                type="email"
+                required
+                placeholder="e.g. ca.name@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-slate-50"
+              />
             </div>
-
-            {otpSent && !isEmailVerified && (
-              <div className="bg-sky-50 p-4 rounded border border-sky-100">
-                <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
-                  Enter OTP sent to {email}
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Enter 4-digit OTP"
-                    value={otpValue}
-                    onChange={(e) => setOtpValue(e.target.value)}
-                    className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-white tracking-widest text-center font-bold"
-                    maxLength={4}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (otpValue === "1234") {
-                        setIsEmailVerified(true);
-                        setOtpSent(false);
-                        setError("");
-                      } else {
-                        setError("Invalid OTP. Please enter 1234.");
-                      }
-                    }}
-                    className="px-4 py-2 bg-skyblue text-white hover:bg-navy text-xs font-bold rounded shadow-sm whitespace-nowrap transition-smooth"
-                  >
-                    Confirm OTP
-                  </button>
-                </div>
-              </div>
-            )}
 
             <div>
               <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
