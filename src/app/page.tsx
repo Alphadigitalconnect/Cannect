@@ -10,6 +10,9 @@ export const dynamic = 'force-dynamic';
 export default function HomePage() {
   const db = readDb();
   
+  const approvedFirmsCount = db.firms.filter((f: any) => f.status === 'approved').length;
+  const approvedUsersCount = db.users.filter((u: any) => u.status === 'approved').length;
+
   return (
     <div className="bg-slate-50 min-h-screen">
       
@@ -65,13 +68,13 @@ export default function HomePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="border border-white/10 rounded p-4 bg-white/10 backdrop-blur-xs">
                       <span className="block text-2xl font-serif font-bold text-white">
-                        <CountUpNumber end={db.firms.length} />+
+                        <CountUpNumber end={approvedFirmsCount} />+
                       </span>
                       <span className="text-xs text-sky-100 font-sans">Registered Firms</span>
                     </div>
                     <div className="border border-white/10 rounded p-4 bg-white/10 backdrop-blur-xs">
                       <span className="block text-2xl font-serif font-bold text-white">
-                        <CountUpNumber end={db.users.length} />+
+                        <CountUpNumber end={approvedUsersCount} />+
                       </span>
                       <span className="text-xs text-sky-100 font-sans">Verified Members</span>
                     </div>
