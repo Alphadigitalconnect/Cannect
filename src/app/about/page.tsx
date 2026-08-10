@@ -6,6 +6,8 @@ import StaggeredFadeIn from "@/components/StaggeredFadeIn";
 
 export const revalidate = 0;
 
+export const dynamic = 'force-dynamic';
+
 export default function AboutPage() {
   const db = readDb();
   

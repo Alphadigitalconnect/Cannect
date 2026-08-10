@@ -5,6 +5,8 @@ import FadeIn from "@/components/FadeIn";
 import StaggeredFadeIn from "@/components/StaggeredFadeIn";
 import CountUpNumber from "@/components/CountUpNumber";
 
+export const dynamic = 'force-dynamic';
+
 export default function HomePage() {
   const db = readDb();
   

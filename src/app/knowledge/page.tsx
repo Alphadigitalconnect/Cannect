@@ -4,6 +4,8 @@ import KnowledgePortalClient from "@/components/KnowledgePortalClient";
 
 export const revalidate = 0; // Ensure data is loaded dynamically for test updates
 
+export const dynamic = 'force-dynamic';
+
 export default function KnowledgePage() {
   const db = readDb();
   // Get articles sorted (for mock database, we assume file order is chronological, or reverse it)
