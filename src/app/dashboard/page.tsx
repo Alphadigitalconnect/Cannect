@@ -1464,19 +1464,6 @@ function DashboardContent() {
                         {user.bio || "No firm bio provided yet."}
                       </p>
                     </div>
-
-                    <div className="pt-6 mt-6 border-t border-rose-100">
-                      <h3 className="text-sm font-bold text-rose-600 mb-2">Danger Zone</h3>
-                      <p className="text-xs text-slate-500 mb-3">
-                        Permanently delete your account and remove all your data from the directory.
-                      </p>
-                      <button
-                        onClick={handleDeleteAccount}
-                        className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white border border-rose-200 text-xs font-bold rounded shadow-sm transition-smooth"
-                      >
-                        Delete My Account
-                      </button>
-                    </div>
                   </div>
                 ) : (
                   <form onSubmit={handleProfileUpdate} className="space-y-5">
