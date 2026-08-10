@@ -1,7 +1,11 @@
 import fs from "fs";
 import path from "path";
 
-const dataDir = path.join(process.cwd(), "data");
+const isProd = process.env.NODE_ENV === 'production';
+// In production (Hostinger), save data ONE folder above the app so deployments don't delete it
+const dataDir = isProd 
+  ? path.join(process.cwd(), "..", "cannect_data") 
+  : path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "db.json");
 
 function ensureDataDir() {
