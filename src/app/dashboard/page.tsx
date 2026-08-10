@@ -1464,6 +1464,15 @@ function DashboardContent() {
                         {user.bio || "No firm bio provided yet."}
                       </p>
                     </div>
+
+                    <div className="pt-4 border-t border-slate-100 flex justify-end">
+                      <button
+                        onClick={handleDeleteAccount}
+                        className="text-[11px] text-slate-400 hover:text-rose-600 font-medium underline underline-offset-2 transition-smooth"
+                      >
+                        Delete My Account
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <form onSubmit={handleProfileUpdate} className="space-y-5">
