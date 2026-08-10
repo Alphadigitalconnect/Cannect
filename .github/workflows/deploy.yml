@@ -1,0 +1,33 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment archive
+        run: |
+          git archive --format=zip HEAD -o deploy.zip
+          echo "Archive created: $(du -sh deploy.zip | cut -f1)"
+
+      - name: Deploy to Hostinger
+        env:
+          HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+        run: |
+          echo "Uploading archive to Hostinger..."
+          
+          UPLOAD_RESPONSE=$(curl -s -X POST \
+            "https://api.hostinger.com/v1/hosting/nodes/${{ secrets.HOSTINGER_USERNAME }}/webservers/antiquewhite-ram-669569.hostingersite.com/applications/nodejs/deployments" \
+            -H "Authorization: Bearer $HOSTINGER_API_TOKEN" \
+            -F "archive=@deploy.zip")
+          
+          echo "Upload response: $UPLOAD_RESPONSE"
+          echo "Deployment triggered successfully!"
