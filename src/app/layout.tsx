@@ -4,6 +4,10 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FooterWrapper from "@/components/FooterWrapper";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+
 const montserrat = Montserrat({
   subsets: ["latin"],
   variable: "--font-montserrat",
