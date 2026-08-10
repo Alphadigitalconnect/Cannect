@@ -29,10 +29,10 @@ function RegisterForm() {
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
   
-  // OTP State
+  // OTP State (Now for Email instead of Phone)
   const [otpSent, setOtpSent] = useState(false);
   const [otpValue, setOtpValue] = useState("");
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
   
   const [caName, setCaName] = useState("");
   const [membershipNo, setMembershipNo] = useState("");
@@ -40,6 +40,7 @@ function RegisterForm() {
   const [otherQualifications, setOtherQualifications] = useState("");
   
   const [firmName, setFirmName] = useState("");
+  const [firmNumber, setFirmNumber] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
@@ -77,8 +78,8 @@ function RegisterForm() {
         setError("Please enter a valid email address.");
         return;
       }
-      if (!isPhoneVerified) {
-        setError("Please verify your mobile number with OTP before proceeding.");
+      if (!isEmailVerified) {
+        setError("Please verify your email address with the OTP before proceeding.");
         return;
       }
       setStep(2);
@@ -106,8 +107,8 @@ function RegisterForm() {
     setLoading(true);
     setError("");
 
-    if (hasCop && (!firmName || !city || !state)) {
-      setError("Please provide your Firm Name and Location.");
+    if (hasCop && (!firmName || !city || !state || !firmNumber)) {
+      setError("Please provide your Firm Name, Firm Registration Number (FRN), and Location.");
       setLoading(false);
       return;
     }
@@ -122,6 +123,7 @@ function RegisterForm() {
           caName,
           membershipNo,
           firmName,
+          firmNumber,
           specialisations: selectedSpecs,
           city,
           state,
@@ -230,15 +232,72 @@ function RegisterForm() {
               <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
                 Professional Email Address *
               </label>
-              <input
-                type="email"
-                required
-                placeholder="e.g. ca.name@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-slate-50"
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. ca.name@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isEmailVerified}
+                  className={`w-full text-xs p-2.5 border rounded focus-ring ${isEmailVerified ? 'bg-green-50 border-green-200 text-green-700' : 'border-slate-200 bg-slate-50'}`}
+                />
+                {!isEmailVerified && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!email || !email.includes("@")) {
+                        setError("Please enter a valid email address.");
+                        return;
+                      }
+                      setOtpSent(true);
+                      setError("");
+                      alert(`MOCK EMAIL: A verification OTP (1234) has been sent to ${email}`);
+                    }}
+                    className="px-4 py-2 bg-slate-200 text-navy hover:bg-slate-300 text-xs font-bold rounded shadow-sm whitespace-nowrap transition-smooth"
+                  >
+                    Verify Email
+                  </button>
+                )}
+              </div>
+              {isEmailVerified && (
+                <p className="text-[10px] text-green-600 font-bold mt-1">✓ Email address verified successfully</p>
+              )}
             </div>
+
+            {otpSent && !isEmailVerified && (
+              <div className="bg-sky-50 p-4 rounded border border-sky-100">
+                <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
+                  Enter OTP sent to {email}
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    placeholder="Enter 4-digit OTP"
+                    value={otpValue}
+                    onChange={(e) => setOtpValue(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-white tracking-widest text-center font-bold"
+                    maxLength={4}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (otpValue === "1234") {
+                        setIsEmailVerified(true);
+                        setOtpSent(false);
+                        setError("");
+                      } else {
+                        setError("Invalid OTP. Please enter 1234.");
+                      }
+                    }}
+                    className="px-4 py-2 bg-skyblue text-white hover:bg-navy text-xs font-bold rounded shadow-sm whitespace-nowrap transition-smooth"
+                  >
+                    Confirm OTP
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
                 Password *
@@ -256,71 +315,16 @@ function RegisterForm() {
               <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
                 Mobile Number *
               </label>
-              <div className="flex space-x-2">
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. +91 98765 43210"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  disabled={isPhoneVerified}
-                  className={`w-full text-xs p-2.5 border rounded focus-ring ${isPhoneVerified ? 'bg-green-50 border-green-200 text-green-700' : 'border-slate-200 bg-slate-50'}`}
-                />
-                {!isPhoneVerified && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!phone || phone.replace(/\D/g, '').length < 10) {
-                        setError("Please enter a valid 10-digit mobile number.");
-                        return;
-                      }
-                      setOtpSent(true);
-                      setError("");
-                      alert(`MOCK SMS: Your CAnnect registration OTP is 1234`);
-                    }}
-                    className="px-4 py-2 bg-slate-200 text-navy hover:bg-slate-300 text-xs font-bold rounded shadow-sm whitespace-nowrap transition-smooth"
-                  >
-                    Send OTP
-                  </button>
-                )}
-              </div>
-              {isPhoneVerified && (
-                <p className="text-[10px] text-green-600 font-bold mt-1">✓ Mobile number verified successfully</p>
-              )}
+              <input
+                type="tel"
+                required
+                placeholder="e.g. +91 98765 43210"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-slate-50"
+              />
             </div>
 
-            {otpSent && !isPhoneVerified && (
-              <div className="bg-sky-50 p-4 rounded border border-sky-100">
-                <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
-                  Enter OTP sent to {phone}
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Enter 4-digit OTP"
-                    value={otpValue}
-                    onChange={(e) => setOtpValue(e.target.value)}
-                    className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-white tracking-widest text-center font-bold"
-                    maxLength={4}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (otpValue === "1234") {
-                        setIsPhoneVerified(true);
-                        setOtpSent(false);
-                        setError("");
-                      } else {
-                        setError("Invalid OTP. Please enter 1234.");
-                      }
-                    }}
-                    className="px-4 py-2 bg-skyblue text-white hover:bg-navy text-xs font-bold rounded shadow-sm whitespace-nowrap transition-smooth"
-                  >
-                    Verify
-                  </button>
-                </div>
-              </div>
-            )}
             <div className="pt-2 border-t border-slate-100 flex justify-end">
               <button
                 type="submit"
@@ -427,6 +431,20 @@ function RegisterForm() {
                 placeholder="e.g. R. Sharma & Associates"
                 value={firmName}
                 onChange={(e) => setFirmName(e.target.value)}
+                className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-slate-50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-navy uppercase tracking-wider mb-1">
+                Firm Registration Number (FRN) *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. 123456W"
+                value={firmNumber}
+                onChange={(e) => setFirmNumber(e.target.value)}
                 className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-slate-50"
               />
             </div>

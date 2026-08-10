@@ -10,6 +10,7 @@ export async function POST(request: Request) {
       caName,
       membershipNo,
       firmName,
+      firmNumber,
       specialisations,
       city,
       state,
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
       );
     }
     
-    if (hasCop && (!firmName || !city || !state)) {
+    if (hasCop && (!firmName || !city || !state || !firmNumber)) {
       return NextResponse.json(
         { error: "Required firm fields are missing for CoP holders." },
         { status: 400 }
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
             caName,
             membershipNo,
             firmName,
+            firmNumber,
             specialisations: specialisations || [],
             city,
             state,
