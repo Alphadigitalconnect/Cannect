@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 export async function GET(request: Request) {
   try {
@@ -13,11 +14,11 @@ export async function GET(request: Request) {
 
     const { data: currentUser, error: userError } = await supabase
       .from('users')
-      .select('role')
+      .select('role, email')
       .eq('id', userId)
       .maybeSingle();
 
-    if (userError || !currentUser || currentUser.role !== "admin") {
+    if (userError || !currentUser || currentUser.role !== "admin" || currentUser.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
       return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
     }
 
@@ -51,11 +52,11 @@ export async function PATCH(request: Request) {
 
     const { data: adminUser, error: adminError } = await supabase
       .from('users')
-      .select('role')
+      .select('role, email')
       .eq('id', adminId)
       .maybeSingle();
 
-    if (adminError || !adminUser || adminUser.role !== "admin") {
+    if (adminError || !adminUser || adminUser.role !== "admin" || adminUser.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
       return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
     }
 

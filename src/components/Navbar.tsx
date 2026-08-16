@@ -324,6 +324,33 @@ export default function Navbar() {
                 Dashboard
               </Link>
             )}
+
+            {user && user.role === "admin" && (
+              <>
+                <Link
+                  href="/admin-approvals"
+                  onClick={() => setIsOpen(false)}
+                  className={`block px-3 py-2 rounded text-base font-medium ${
+                    pathname.startsWith("/admin-approvals")
+                      ? "bg-slate-100 text-skyblue"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  Approvals
+                </Link>
+                <Link
+                  href="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className={`block px-3 py-2 rounded text-base font-medium ${
+                    pathname.startsWith("/admin") && !pathname.startsWith("/admin-approvals")
+                      ? "bg-slate-100 text-skyblue"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  Admin Panel
+                </Link>
+              </>
+            )}
           </div>
           
           <div className="pt-4 pb-4 border-t border-slate-100 px-5">

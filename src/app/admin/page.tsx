@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import Logo from "@/components/Logo";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 export default function AdminPage() {
-  const [pin, setPin] = useState("");
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [authError, setAuthError] = useState("");
+  const [adminUser, setAdminUser] = useState<any>(null);
+  const [authState, setAuthState] = useState<"loading" | "not_logged_in" | "not_admin" | "authorized">("loading");
 
   const [activeTab, setActiveTab] = useState("verifications");
   const [dbData, setDbData] = useState<any>({ users: [], firms: [], articles: [], events: [] });
@@ -41,21 +41,37 @@ export default function AdminPage() {
   });
   const [showEventForm, setShowEventForm] = useState(false);
 
-  // Load Auth state from sessionStorage on mount
+  // Check logged-in user's role on mount
   useEffect(() => {
-    const auth = sessionStorage.getItem("cannect_admin_auth");
-    if (auth === "true") {
-      setIsAuthorized(true);
-      fetchDbData();
-    } else {
+    const storedUser = localStorage.getItem("cannect_user");
+    if (!storedUser) {
+      setAuthState("not_logged_in");
+      setLoading(false);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(storedUser);
+      if (parsed.role === "admin" && parsed.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        setAdminUser(parsed);
+        setAuthState("authorized");
+        fetchDbData(parsed.id);
+      } else {
+        setAdminUser(parsed);
+        setAuthState("not_admin");
+        setLoading(false);
+      }
+    } catch (e) {
+      setAuthState("not_logged_in");
       setLoading(false);
     }
   }, []);
 
-  const fetchDbData = async () => {
+  const fetchDbData = async (userId?: string) => {
+    const uid = userId || adminUser?.id;
+    if (!uid) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/data");
+      const res = await fetch(`/api/admin/data?userId=${uid}`);
       const data = await res.json();
       if (res.ok) {
         setDbData(data);
@@ -65,24 +81,6 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handlePinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin === "250402") {
-      sessionStorage.setItem("cannect_admin_auth", "true");
-      setIsAuthorized(true);
-      setAuthError("");
-      fetchDbData();
-    } else {
-      setAuthError("Incorrect security code.");
-    }
-  };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem("cannect_admin_auth");
-    setIsAuthorized(false);
-    setPin("");
   };
 
   // Toggle CA Verification
@@ -265,56 +263,64 @@ export default function AdminPage() {
     setShowEventForm(true);
   };
 
-  // Security Login Gate Screen
-  if (!isAuthorized) {
+  // Access Control Gate
+  if (authState === "loading") {
+    return (
+      <div className="bg-slate-50 min-h-screen flex items-center justify-center font-sans text-navy">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-skyblue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-slate-500">Verifying admin credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === "not_logged_in") {
     return (
       <div className="bg-slate-50 min-h-screen flex items-center justify-center px-4 font-sans text-navy">
-        <form
-          onSubmit={handlePinSubmit}
-          className="bg-white border border-slate-200 p-8 rounded-lg shadow-md w-full max-w-md space-y-6"
-        >
-          <div className="text-center">
-            <Logo className="justify-center" darkText={true} />
-            <h1 className="text-lg font-bold text-navy tracking-wide uppercase mt-4">
-              Operations Control Panel
-            </h1>
-            <p className="text-slate-500 text-xs mt-1">
-              Restricted Area. Enter Admin Passcode to Unlock.
-            </p>
+        <div className="bg-white border border-slate-200 p-10 rounded-2xl shadow-md w-full max-w-md space-y-6 text-center">
+          <Logo className="justify-center" darkText={true} />
+          <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto text-3xl">
+            🔒
           </div>
-
-          {authError && (
-            <div className="bg-rose-550 border-l-4 border-rose-500 bg-rose-500/10 text-rose-350 p-2.5 rounded text-xs text-rose-200">
-              {authError}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="block text-[10px] font-bold text-slate-350 uppercase tracking-widest text-slate-300">
-              Admin Passcode (PIN)
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="••••"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              className="w-full text-center text-lg p-3 bg-navy border border-slate-700 rounded focus-ring font-mono text-white tracking-widest"
-              maxLength={6}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full py-2.5 bg-skyblue hover:bg-skyblue-dark text-white font-bold text-xs uppercase tracking-widest rounded transition-smooth shadow-md"
-          >
-            Authenticate Gate &rarr;
-          </button>
-
-          <p className="text-center text-[10px] text-slate-400 font-light">
-            (For evaluation, security code is: <span className="font-mono text-skyblue font-bold">250402</span>)
+          <h1 className="text-lg font-bold text-navy uppercase tracking-wide">
+            Authentication Required
+          </h1>
+          <p className="text-slate-500 text-sm">
+            You need to sign in with an admin account to access this panel.
           </p>
-        </form>
+          <a
+            href="/auth/login"
+            className="inline-block px-6 py-2.5 bg-skyblue hover:bg-navy text-white font-bold text-xs uppercase tracking-widest rounded transition-all shadow-md"
+          >
+            Sign In &rarr;
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === "not_admin") {
+    return (
+      <div className="bg-slate-50 min-h-screen flex items-center justify-center px-4 font-sans text-navy">
+        <div className="bg-white border border-slate-200 p-10 rounded-2xl shadow-md w-full max-w-md space-y-6 text-center">
+          <Logo className="justify-center" darkText={true} />
+          <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto text-3xl">
+            ⛔
+          </div>
+          <h1 className="text-lg font-bold text-navy uppercase tracking-wide">
+            Access Denied
+          </h1>
+          <p className="text-slate-500 text-sm">
+            This area is restricted to platform administrators only. Your account ({adminUser?.email}) does not have admin privileges.
+          </p>
+          <a
+            href="/dashboard"
+            className="inline-block px-6 py-2.5 bg-skyblue hover:bg-navy text-white font-bold text-xs uppercase tracking-widest rounded transition-all shadow-md"
+          >
+            &larr; Return to Dashboard
+          </a>
+        </div>
       </div>
     );
   }
@@ -334,12 +340,12 @@ export default function AdminPage() {
               <p className="text-[10px] text-slate-400">Database updates synchronise in real-time.</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
+          <a
+            href="/dashboard"
             className="px-4 py-2 border border-slate-600 hover:border-skyblue hover:text-skyblue text-slate-200 font-bold text-[10px] rounded uppercase tracking-wider transition-smooth"
           >
-            Exit Control Desk
-          </button>
+            &larr; Back to Dashboard
+          </a>
         </div>
       </section>
 

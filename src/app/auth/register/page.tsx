@@ -51,6 +51,23 @@ function RegisterForm() {
     "M&A Advisory"
   ];
 
+  const fillDemoData = () => {
+    const randomNum = Math.floor(Math.random() * 9000 + 1000);
+    setEmail(`demo.ca${randomNum}@cannect.com`);
+    setPassword("Password@123");
+    setPhone("+91 98765 43210");
+    setCaName("CA Vikram Malhotra");
+    setMembershipNo(String(Math.floor(Math.random() * 900000 + 100000)));
+    setYearsOfPractice("8");
+    setFirmName("V. Malhotra & Associates");
+    setFirmNumber(`FRN-${randomNum}N`);
+    setCity("Mumbai");
+    setState("Maharashtra");
+    setSelectedSpecs(["Direct Tax", "Audit & Assurance", "GST & Indirect Tax"]);
+    setBio("Practicing CA firm specializing in corporate audit, direct taxation, and GST compliance.");
+    setError("");
+  };
+
   const handleCheckboxChange = (spec: string) => {
     if (selectedSpecs.includes(spec)) {
       setSelectedSpecs(selectedSpecs.filter((s) => s !== spec));
@@ -165,6 +182,15 @@ function RegisterForm() {
               ? "Build your peer network and list your specialist services in India." 
               : "Connect with peers, access resources, and build your professional network."}
           </p>
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={fillDemoData}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-md text-[11px] font-semibold transition-all shadow-xs cursor-pointer"
+            >
+              <span>⚡</span> Auto-Fill Valid Demo Details
+            </button>
+          </div>
         </div>
 
         {/* Step Indicator */}

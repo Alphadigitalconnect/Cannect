@@ -3,32 +3,48 @@
 import React, { useState, useEffect } from "react";
 import Logo from "@/components/Logo";
 import StaggeredFadeIn from "@/components/StaggeredFadeIn";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 export default function AdminApprovalsPage() {
-  const [pin, setPin] = useState("");
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [authError, setAuthError] = useState("");
+  const [adminUser, setAdminUser] = useState<any>(null);
+  const [authState, setAuthState] = useState<"loading" | "not_logged_in" | "not_admin" | "authorized">("loading");
 
   const [users, setUsers] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Load Auth state from sessionStorage on mount
+  // Check logged-in user's role on mount
   useEffect(() => {
-    const auth = sessionStorage.getItem("cannect_admin_auth");
-    if (auth === "true") {
-      setIsAuthorized(true);
-      fetchPendingUsers();
-    } else {
+    const storedUser = localStorage.getItem("cannect_user");
+    if (!storedUser) {
+      setAuthState("not_logged_in");
+      setLoading(false);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(storedUser);
+      if (parsed.role === "admin" && parsed.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        setAdminUser(parsed);
+        setAuthState("authorized");
+        fetchPendingUsers(parsed.id);
+      } else {
+        setAdminUser(parsed);
+        setAuthState("not_admin");
+        setLoading(false);
+      }
+    } catch (e) {
+      setAuthState("not_logged_in");
       setLoading(false);
     }
   }, []);
 
-  const fetchPendingUsers = async () => {
+  const fetchPendingUsers = async (userId?: string) => {
+    const uid = userId || adminUser?.id;
+    if (!uid) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/approvals");
+      const res = await fetch(`/api/admin/approvals?userId=${uid}`);
       const data = await res.json();
       if (res.ok) {
         setUsers(data.users);
@@ -40,24 +56,6 @@ export default function AdminApprovalsPage() {
     }
   };
 
-  const handlePinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin === "250402") {
-      sessionStorage.setItem("cannect_admin_auth", "true");
-      setIsAuthorized(true);
-      setAuthError("");
-      fetchPendingUsers();
-    } else {
-      setAuthError("Incorrect security code.");
-    }
-  };
-
-  const handleLogout = () => {
-    sessionStorage.removeItem("cannect_admin_auth");
-    setIsAuthorized(false);
-    setPin("");
-  };
-
   const handleAction = async (userId: string, status: "approved" | "rejected") => {
     if (status === "rejected" && !confirm("Are you sure you want to reject this user?")) return;
     
@@ -66,7 +64,7 @@ export default function AdminApprovalsPage() {
       const res = await fetch("/api/admin/approvals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUserId: userId, status })
+        body: JSON.stringify({ adminId: adminUser?.id, targetUserId: userId, status })
       });
       if (res.ok) {
         // Update user status instead of removing
@@ -81,52 +79,65 @@ export default function AdminApprovalsPage() {
     }
   };
 
-  if (!isAuthorized) {
+  if (authState === "loading") {
+    return (
+      <div className="bg-slate-900 min-h-screen flex items-center justify-center px-4 font-sans text-white">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-skyblue border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-slate-400">Verifying admin credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === "not_logged_in") {
     return (
       <div className="bg-slate-900 min-h-screen flex items-center justify-center px-4 font-sans text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-skyblue/20 via-slate-900 to-slate-900"></div>
-        <form
-          onSubmit={handlePinSubmit}
-          className="relative bg-white/10 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-8"
-        >
-          <div className="text-center">
-            <Logo className="justify-center scale-110" />
-            <h1 className="text-xl font-bold text-white tracking-widest uppercase mt-6 drop-shadow-sm">
-              Approval Gateway
-            </h1>
-            <p className="text-slate-300 text-sm mt-2 font-light">
-              Restricted Area. Enter Admin Passcode.
-            </p>
+        <div className="relative bg-white/10 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-8 text-center">
+          <Logo className="justify-center scale-110" />
+          <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+            🔒
           </div>
-
-          {authError && (
-            <div className="bg-rose-500/20 border-l-4 border-rose-500 text-rose-200 p-3 rounded text-sm">
-              {authError}
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-widest">
-              Passcode
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="••••"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              className="w-full text-center text-2xl p-4 bg-black/30 border border-white/20 rounded-xl focus:border-skyblue focus:ring-1 focus:ring-skyblue text-white tracking-widest transition-all outline-none"
-              maxLength={6}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full py-4 bg-gradient-to-r from-skyblue to-blue-500 hover:from-blue-500 hover:to-skyblue text-white font-bold text-sm uppercase tracking-widest rounded-xl transition-all shadow-lg hover:shadow-skyblue/30 transform hover:-translate-y-0.5"
+          <h1 className="text-xl font-bold text-white tracking-widest uppercase">
+            Authentication Required
+          </h1>
+          <p className="text-slate-300 text-sm font-light">
+            Sign in with an admin account to access the Approval Gateway.
+          </p>
+          <a
+            href="/auth/login"
+            className="inline-block w-full py-4 bg-gradient-to-r from-skyblue to-blue-500 hover:from-blue-500 hover:to-skyblue text-white font-bold text-sm uppercase tracking-widest rounded-xl transition-all shadow-lg hover:shadow-skyblue/30"
           >
-            Authenticate &rarr;
-          </button>
-        </form>
+            Sign In &rarr;
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === "not_admin") {
+    return (
+      <div className="bg-slate-900 min-h-screen flex items-center justify-center px-4 font-sans text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-rose-500/10 via-slate-900 to-slate-900"></div>
+        <div className="relative bg-white/10 backdrop-blur-md border border-white/20 p-10 rounded-2xl shadow-2xl w-full max-w-md space-y-8 text-center">
+          <Logo className="justify-center scale-110" />
+          <div className="w-16 h-16 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto text-3xl">
+            ⛔
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-widest uppercase">
+            Access Denied
+          </h1>
+          <p className="text-slate-300 text-sm font-light">
+            This area is restricted to platform administrators. Your account ({adminUser?.email}) does not have admin privileges.
+          </p>
+          <a
+            href="/dashboard"
+            className="inline-block w-full py-4 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-500 hover:to-slate-600 text-white font-bold text-sm uppercase tracking-widest rounded-xl transition-all shadow-lg"
+          >
+            &larr; Return to Dashboard
+          </a>
+        </div>
       </div>
     );
   }
@@ -146,12 +157,12 @@ export default function AdminApprovalsPage() {
               <p className="text-[10px] text-slate-500 font-medium">Review new CA registrations</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors uppercase tracking-wider"
+          <a
+            href="/dashboard"
+            className="text-xs font-bold text-slate-500 hover:text-skyblue transition-colors uppercase tracking-wider"
           >
-            Logout
-          </button>
+            &larr; Dashboard
+          </a>
         </div>
       </header>
 

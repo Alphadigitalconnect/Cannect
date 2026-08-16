@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 export async function POST(request: Request) {
   try {
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const isAdmin = email.toLowerCase() === "admin@cannect.com";
+    const isAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
     const status = isAdmin ? "approved" : "pending";
     const role = isAdmin ? "admin" : "user";
 
@@ -77,10 +78,10 @@ export async function POST(request: Request) {
           password, // In a real app, hash this with bcrypt before saving!
           caName,
           membershipNo,
-          firmName: hasCop ? firmName : null,
+          firmName: (hasCop && firmName) ? firmName : "Individual Member",
           specialisations: specialisations || [],
-          city: hasCop ? city : '',
-          state: hasCop ? state : '',
+          city: city || "N/A",
+          state: state || "N/A",
           yearsOfPractice: Number(yearsOfPractice) || 1,
           phone: phone || "",
           bio: bio || "",
@@ -109,7 +110,6 @@ export async function POST(request: Request) {
             caName,
             membershipNo,
             firmName,
-            firmNumber,
             specialisations: specialisations || [],
             city,
             state,

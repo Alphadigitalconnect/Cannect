@@ -1,8 +1,27 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized: userId is required." }, { status: 401 });
+    }
+
+    // Verify the requesting user is THE admin
+    const { data: currentUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('role, email')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userCheckError || !currentUser || currentUser.role !== "admin" || currentUser.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden: Admins only." }, { status: 403 });
+    }
+
     const { data: users, error: usersError } = await supabase.from('users').select('*').order('created_at', { ascending: false });
     const { data: firms, error: firmsError } = await supabase.from('firms').select('*');
 
@@ -26,14 +45,25 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { targetUserId, status } = body;
+    const { adminId, targetUserId, status } = body;
 
-    if (!targetUserId || !status) {
+    if (!adminId || !targetUserId || !status) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     if (!["approved", "rejected"].includes(status)) {
       return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
+    }
+
+    // Verify the requesting user is THE admin
+    const { data: adminUser, error: adminError } = await supabase
+      .from('users')
+      .select('role, email')
+      .eq('id', adminId)
+      .maybeSingle();
+
+    if (adminError || !adminUser || adminUser.role !== "admin" || adminUser.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden: Admins only." }, { status: 403 });
     }
 
     // Update User
@@ -59,3 +89,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
+

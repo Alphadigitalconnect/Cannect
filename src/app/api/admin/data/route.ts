@@ -1,9 +1,29 @@
 import { NextResponse } from "next/server";
 import { readDb } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
+import { ADMIN_EMAIL } from "@/lib/admin";
 
 // GET request to fetch the entire database for admin use
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized: userId is required." }, { status: 401 });
+    }
+
+    // Verify the requesting user is THE admin
+    const { data: currentUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('role, email')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userCheckError || !currentUser || currentUser.role !== "admin" || currentUser.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      return NextResponse.json({ error: "Forbidden: Admins only." }, { status: 403 });
+    }
+
     const db = readDb();
     
     // We mask the passwords for security in dashboard display
