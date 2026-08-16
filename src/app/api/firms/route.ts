@@ -1,29 +1,63 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-// GET all firms (used for the directory)
+// GET all firms and members (used for the directory)
 export async function GET() {
   try {
-    const { data: firms, error: firmsError } = await supabase.from('firms').select('*');
-    if (firmsError) throw firmsError;
+    // 1. Fetch all members from users table
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('*')
+      .neq('isPrivate', true)
+      .order('created_at', { ascending: false });
 
-    const { data: connections, error: connError } = await supabase
+    if (usersError) throw usersError;
+
+    // 2. Fetch any firms records
+    const { data: firms } = await supabase.from('firms').select('*');
+
+    // 3. Fetch connections
+    const { data: connections } = await supabase
       .from('connections')
       .select('senderId, receiverId')
       .eq('status', 'accepted');
-    if (connError) throw connError;
 
-    // Map firms to include count of accepted connections
-    const firmsWithConnections = (firms || []).map((firm) => {
+    // 4. Map users into directory peers
+    const directoryMembers = (users || []).map((user) => {
+      const userFirm = (firms || []).find((f) => f.userId === user.id);
       const connectionCount = (connections || []).filter(
-        (c) => c.senderId === firm.userId || c.receiverId === firm.userId
+        (c) => c.senderId === user.id || c.receiverId === user.id
       ).length;
+
       return {
-        ...firm,
+        id: user.id,
+        userId: user.id,
+        caName: user.caName || "Member",
+        membershipNo: user.membershipNo || "",
+        firmName: (userFirm?.firmName && userFirm.firmName !== "Individual Member")
+          ? userFirm.firmName
+          : (user.firmName || "Individual Practice"),
+        specialisations: (user.specialisations && user.specialisations.length > 0)
+          ? user.specialisations
+          : (userFirm?.specialisations || []),
+        city: user.city || userFirm?.city || "N/A",
+        state: user.state || userFirm?.state || "N/A",
+        area: user.area || userFirm?.area || "",
+        yearsOfPractice: Number(user.yearsOfPractice || userFirm?.yearsOfPractice || 1),
+        phone: user.phone || userFirm?.phone || "",
+        email: user.email,
+        bio: user.bio || userFirm?.bio || "",
+        avatarUrl: user.avatarUrl || userFirm?.avatarUrl || null,
+        isPrivate: user.isPrivate || false,
+        status: user.status || "approved",
+        experience: user.experience || userFirm?.experience || [],
         connectionCount,
+        created_at: user.created_at
       };
     });
-    return NextResponse.json({ firms: firmsWithConnections }, { status: 200 });
+
+    return NextResponse.json({ firms: directoryMembers }, { status: 200 });
   } catch (error) {
     console.error("GET Firms Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
@@ -72,7 +106,7 @@ export async function PUT(request: Request) {
     if (isPrivate !== undefined) updatePayload.isPrivate = isPrivate;
     if (experience !== undefined) updatePayload.experience = experience;
 
-    // Update User record
+    // Update User record in Supabase
     const { data: updatedUser, error: userError } = await supabase
       .from('users')
       .update(updatePayload)
@@ -81,17 +115,49 @@ export async function PUT(request: Request) {
       .maybeSingle();
 
     if (userError || !updatedUser) {
+      console.error("User profile update error:", userError);
       return NextResponse.json(
-        { error: "Profile not found or failed to update user." },
+        { error: userError?.message || "Profile not found or failed to update user." },
         { status: 404 }
       );
     }
 
-    // Update Firm record
-    await supabase
-      .from('firms')
-      .update(updatePayload)
-      .eq('userId', userId);
+    // Also update or insert Firm record if applicable
+    try {
+      const { data: existingFirm } = await supabase
+        .from('firms')
+        .select('id')
+        .eq('userId', userId)
+        .maybeSingle();
+
+      if (existingFirm) {
+        await supabase
+          .from('firms')
+          .update(updatePayload)
+          .eq('userId', userId);
+      } else if (firmName && firmName !== "Individual Member") {
+        await supabase
+          .from('firms')
+          .insert([
+            {
+              userId,
+              caName: updatedUser.caName,
+              membershipNo: updatedUser.membershipNo,
+              firmName: updatedUser.firmName,
+              specialisations: updatedUser.specialisations || [],
+              city: updatedUser.city || "N/A",
+              state: updatedUser.state || "N/A",
+              yearsOfPractice: updatedUser.yearsOfPractice || 1,
+              phone: updatedUser.phone || "",
+              email: updatedUser.email,
+              bio: updatedUser.bio || "",
+              status: updatedUser.status || "approved"
+            }
+          ]);
+      }
+    } catch (firmErr) {
+      console.warn("Firm sync notice:", firmErr);
+    }
 
     // Exclude password from return payload
     const { password: _, ...safeUser } = updatedUser;

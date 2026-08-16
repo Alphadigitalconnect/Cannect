@@ -8,15 +8,20 @@ import CountUpNumber from "@/components/CountUpNumber";
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const { count: approvedFirmsCount } = await supabase
-    .from('firms')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'approved');
-
   const { count: approvedUsersCount } = await supabase
     .from('users')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'approved');
+
+  const { count: approvedFirmsCount } = await supabase
+    .from('users')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'approved')
+    .neq('firmName', 'Individual Member');
+
+  const displayFirmsCount = approvedFirmsCount && approvedFirmsCount > 0 
+    ? approvedFirmsCount 
+    : (approvedUsersCount || 0);
 
   return (
     <div className="bg-slate-50 min-h-screen">
@@ -73,7 +78,7 @@ export default async function HomePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="border border-white/10 rounded p-4 bg-white/10 backdrop-blur-xs">
                       <span className="block text-2xl font-serif font-bold text-white">
-                        <CountUpNumber end={approvedFirmsCount || 0} />+
+                        <CountUpNumber end={displayFirmsCount || 0} />+
                       </span>
                       <span className="text-xs text-sky-100 font-sans">Registered Firms</span>
                     </div>

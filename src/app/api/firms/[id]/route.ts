@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
@@ -10,24 +11,57 @@ interface ParamsProps {
 // GET single firm details
 export async function GET(request: Request, { params }: ParamsProps) {
   try {
-    const { data: firm, error: firmError } = await supabase
+    // 1. Try to find in firms by id or userId
+    let { data: firm } = await supabase
       .from('firms')
       .select('*')
-      .eq('id', params.id)
+      .or(`id.eq.${params.id},userId.eq.${params.id}`)
       .maybeSingle();
+
+    // 2. If not found in firms, fetch from users table
+    if (!firm) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', params.id)
+        .maybeSingle();
+
+      if (user) {
+        firm = {
+          id: user.id,
+          userId: user.id,
+          caName: user.caName || "Member",
+          membershipNo: user.membershipNo || "",
+          firmName: user.firmName || "Individual Practice",
+          specialisations: user.specialisations || [],
+          city: user.city || "N/A",
+          state: user.state || "N/A",
+          area: user.area || "",
+          yearsOfPractice: Number(user.yearsOfPractice || 1),
+          phone: user.phone || "",
+          email: user.email,
+          bio: user.bio || "",
+          avatarUrl: user.avatarUrl || null,
+          status: user.status || "approved",
+          experience: user.experience || []
+        };
+      }
+    }
       
-    if (firmError || !firm) {
+    if (!firm) {
       return NextResponse.json(
-        { error: "Firm profile not found." },
+        { error: "Member profile not found." },
         { status: 404 }
       );
     }
+
+    const targetUserId = firm.userId || firm.id;
     
     const { data: connections } = await supabase
       .from('connections')
       .select('senderId, receiverId')
       .eq('status', 'accepted')
-      .or(`senderId.eq.${firm.userId},receiverId.eq.${firm.userId}`);
+      .or(`senderId.eq.${targetUserId},receiverId.eq.${targetUserId}`);
 
     const connectionCount = (connections || []).length;
 

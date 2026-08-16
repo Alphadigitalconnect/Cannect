@@ -184,7 +184,7 @@ function DashboardContent() {
       setBio(u.bio || "");
       setSelectedSpecs(u.specialisations || []);
       setSelectedAvatar(u.avatarUrl || "");
-      setIsPrivate(u.isPrivate !== undefined ? u.isPrivate : true);
+      setIsPrivate(u.isPrivate === true);
       setExperienceList(u.experience || []);
       setLinkedInUrl(u.linkedInUrl || "");
       setTwitterUrl(u.twitterUrl || "");
@@ -574,17 +574,27 @@ function DashboardContent() {
 
   // Search/Filters logic
   const filteredPeers = directoryUsers.filter((peer) => {
-    const matchesQuery = searchQuery === "" ||
-      peer.caName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      peer.firmName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      peer.bio.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesCity = searchCity === "" ||
-      peer.city.toLowerCase().includes(searchCity.toLowerCase()) ||
-      peer.state.toLowerCase().includes(searchCity.toLowerCase());
+    const q = (searchQuery || "").toLowerCase().trim();
+    const caNameStr = (peer.caName || "").toLowerCase();
+    const firmNameStr = (peer.firmName || "").toLowerCase();
+    const bioStr = (peer.bio || "").toLowerCase();
 
+    const matchesQuery = q === "" ||
+      caNameStr.includes(q) ||
+      firmNameStr.includes(q) ||
+      bioStr.includes(q);
+    
+    const c = (searchCity || "").toLowerCase().trim();
+    const cityStr = (peer.city || "").toLowerCase();
+    const stateStr = (peer.state || "").toLowerCase();
+
+    const matchesCity = c === "" ||
+      cityStr.includes(c) ||
+      stateStr.includes(c);
+
+    const specialisationsList = Array.isArray(peer.specialisations) ? peer.specialisations : [];
     const matchesSpec = searchSpec === "" ||
-      peer.specialisations.includes(searchSpec);
+      specialisationsList.includes(searchSpec);
 
     return matchesQuery && matchesCity && matchesSpec;
   });
