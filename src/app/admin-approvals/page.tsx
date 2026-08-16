@@ -187,7 +187,7 @@ export default function AdminApprovalsPage() {
               <option value="all">All</option>
             </select>
             <button
-              onClick={fetchPendingUsers}
+              onClick={() => fetchPendingUsers()}
               disabled={loading}
               className="px-4 py-2 bg-white border border-slate-200 shadow-sm rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 hover:text-skyblue transition-all whitespace-nowrap"
             >

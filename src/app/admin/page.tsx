@@ -403,7 +403,7 @@ export default function AdminPage() {
                     CA Members & Practice Listing Directory
                   </h2>
                   <button
-                    onClick={fetchDbData}
+                    onClick={() => fetchDbData()}
                     className="text-[10px] bg-white border border-slate-300 hover:bg-slate-100 font-bold px-3 py-1.5 rounded transition-smooth"
                   >
                     Force Refresh
