@@ -107,16 +107,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Connection request already exists between you." }, { status: 400 });
       }
 
-      const newConnection = {
-        id: "conn_" + Date.now(),
+      const newConnection: any = {
         senderId,
         receiverId,
         status: "pending",
-        timestamp: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase.from("connections").insert([newConnection]).select().single();
-      if (error) throw error;
+      const { data, error } = await supabase.from("connections").insert([newConnection]).select().maybeSingle();
+      if (error) {
+        console.error("Connections insert error:", error);
+        return NextResponse.json(
+          { error: error.message || "Failed to create connection request." },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json(
         { message: "Connection request sent successfully.", connection: data },
