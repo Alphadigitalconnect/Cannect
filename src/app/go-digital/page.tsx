@@ -122,20 +122,20 @@ export default function GoDigitalPage() {
 
       {/* 3. WHY GO DIGITAL SECTION */}
       <section ref={whyGoDigitalRef} className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-16">
-        <div className="bg-gradient-to-br from-skyblue to-sky-600 border border-sky-400 rounded-2xl p-8 md:p-12 text-white shadow-md space-y-8">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 md:p-12 shadow-sm space-y-10">
           <div className="text-center">
-            <span className="text-[10px] text-sky-100 font-bold uppercase tracking-wider block mb-2">
+            <span className="text-[11px] text-skyblue font-bold uppercase tracking-wider bg-sky-50 border border-sky-200 px-3.5 py-1 rounded-full inline-block mb-3">
               Practice Benefits
             </span>
-            <h2 className="text-2xl md:text-3xl font-serif font-bold text-white border-b border-white/20 pb-4 inline-block">
+            <h2 className="text-2xl md:text-3xl font-serif font-bold text-navy block">
               Why Build a Digital Practice Presence?
             </h2>
-            <p className="text-xs text-sky-50 mt-4 max-w-2xl mx-auto">
+            <p className="text-xs md:text-sm text-slate-500 mt-3 max-w-2xl mx-auto">
               Establish authority and service client expectations efficiently in a digital-first market.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
             {[
               {
                 icon: "🛡️",
@@ -163,11 +163,13 @@ export default function GoDigitalPage() {
                 desc: "Securely route online service inquiries and callbacks directly into your designated WhatsApp pipeline."
               }
             ].map((feat, idx) => (
-              <FadeIn key={idx} delay={idx * 150} className="h-full">
-                <div className="border border-white/20 rounded-xl p-5 bg-white/10 backdrop-blur-xs text-center h-full flex flex-col justify-center hover:bg-white/20 transition-all shadow-sm">
-                  <span className="block text-3xl mb-3 drop-shadow-sm">{feat.icon}</span>
-                  <h3 className="font-serif text-sm font-bold text-white mb-2 drop-shadow-sm">{feat.title}</h3>
-                  <p className="text-[10px] text-sky-100 leading-relaxed font-sans">{feat.desc}</p>
+              <FadeIn key={idx} delay={idx * 120} className="h-full">
+                <div className="group border border-slate-200 hover:border-skyblue/60 rounded-2xl p-6 bg-slate-50/60 hover:bg-white text-center h-full flex flex-col items-center justify-start hover:shadow-md transition-all duration-300">
+                  <div className="w-12 h-12 rounded-xl bg-sky-50 border border-sky-100 group-hover:bg-skyblue/10 group-hover:border-skyblue/30 flex items-center justify-center text-2xl mb-4 transition-transform group-hover:scale-110">
+                    {feat.icon}
+                  </div>
+                  <h3 className="font-serif text-sm font-bold text-navy mb-2 group-hover:text-skyblue transition-colors">{feat.title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-sans">{feat.desc}</p>
                 </div>
               </FadeIn>
             ))}
