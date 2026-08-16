@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     if (userError || !newUser) {
       console.error("User insert error:", userError);
       return NextResponse.json(
-        { error: "Failed to persist user details." },
+        { error: userError?.message || "Failed to persist user details." },
         { status: 500 }
       );
     }
