@@ -6,13 +6,15 @@ import { supabase } from "@/lib/supabase";
 export async function GET() {
   try {
     // 1. Fetch all members from users table
-    const { data: users, error: usersError } = await supabase
+    const { data: rawUsers, error: usersError } = await supabase
       .from('users')
       .select('*')
-      .neq('isPrivate', true)
       .order('created_at', { ascending: false });
 
     if (usersError) throw usersError;
+
+    // Filter out users who explicitly marked their profile as private (isPrivate === true)
+    const users = (rawUsers || []).filter((u) => u.isPrivate !== true);
 
     // 2. Fetch any firms records
     const { data: firms } = await supabase.from('firms').select('*');
@@ -24,7 +26,7 @@ export async function GET() {
       .eq('status', 'accepted');
 
     // 4. Map users into directory peers
-    const directoryMembers = (users || []).map((user) => {
+    const directoryMembers = users.map((user) => {
       const userFirm = (firms || []).find((f) => f.userId === user.id);
       const connectionCount = (connections || []).filter(
         (c) => c.senderId === user.id || c.receiverId === user.id
@@ -49,9 +51,13 @@ export async function GET() {
         email: user.email,
         bio: user.bio || userFirm?.bio || "",
         avatarUrl: user.avatarUrl || userFirm?.avatarUrl || null,
-        isPrivate: user.isPrivate || false,
+        isPrivate: user.isPrivate === true,
         status: user.status || "approved",
+        hasCop: user.hasCop,
         experience: user.experience || userFirm?.experience || [],
+        linkedInUrl: user.linkedInUrl || userFirm?.linkedInUrl,
+        twitterUrl: user.twitterUrl || userFirm?.twitterUrl,
+        websiteUrl: user.websiteUrl || userFirm?.websiteUrl,
         connectionCount,
         created_at: user.created_at
       };

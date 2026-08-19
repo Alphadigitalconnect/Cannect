@@ -27,8 +27,19 @@ export async function GET(request: Request) {
 
     const db = readDb();
     
-    // We mask the passwords for security in dashboard display
-    const sanitizedUsers = db.users.map((u) => {
+    // Fetch users and firms from Supabase
+    const { data: rawUsers } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    const { data: rawFirms } = await supabase
+      .from('firms')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    // Mask passwords for security in dashboard display
+    const sanitizedUsers = (rawUsers || []).map((u) => {
       const { password, ...rest } = u;
       return rest;
     });
@@ -36,9 +47,9 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         users: sanitizedUsers,
-        firms: db.firms,
-        articles: db.articles,
-        events: db.events
+        firms: rawFirms || db.firms || [],
+        articles: db.articles || [],
+        events: db.events || []
       },
       { status: 200 }
     );

@@ -110,6 +110,7 @@ function DashboardContent() {
   // Admin Tab states
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminFirms, setAdminFirms] = useState<any[]>([]);
+  const [adminFilterStatus, setAdminFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
 
   const fetchAdminUsers = async () => {
     if (user?.role !== "admin") return;
@@ -1097,14 +1098,12 @@ function DashboardContent() {
                                         Message
                                       </button>
                                       
-                                      <a
-                                        href={`https://wa.me/${peer.phone?.replace(/[^0-9]/g, "") || "918074134879"}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[11px] font-bold bg-emerald-500 text-white hover:bg-emerald-600 px-4 py-1.5 rounded shadow-xs uppercase tracking-wider inline-flex items-center transition-smooth"
+                                      <button
+                                        onClick={() => setViewProfilePeer(peer)}
+                                        className="px-4 py-1.5 bg-slate-100 hover:bg-navy hover:text-white text-navy font-bold text-[11px] rounded shadow-xs uppercase tracking-wider inline-flex items-center transition-smooth border border-slate-200"
                                       >
-                                        WhatsApp
-                                      </a>
+                                        View Profile
+                                      </button>
                                     </div>
 
                                     <button
@@ -1805,62 +1804,127 @@ function DashboardContent() {
             {/* ==================== TAB 5: ADMIN PANEL ==================== */}
             {activeTab === "admin" && user?.role === "admin" && (
               <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-6">
-                <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                  <h2 className="text-sm font-bold text-navy uppercase tracking-wider">Admin Panel: Pending Verifications</h2>
-                  <button onClick={fetchAdminUsers} className="text-xs text-skyblue hover:text-navy">↻ Refresh</button>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="text-sm font-bold text-navy uppercase tracking-wider">Admin Panel: Registered Users ({adminUsers.length})</h2>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Manage and review all platform member accounts</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Link
+                      href="/admin"
+                      className="text-[11px] font-bold text-navy border border-slate-200 hover:border-skyblue hover:text-skyblue bg-slate-50 px-3 py-1.5 rounded transition-smooth shadow-xs"
+                    >
+                      Advanced Admin Suite &rarr;
+                    </Link>
+                    <button onClick={fetchAdminUsers} className="text-xs text-skyblue hover:text-navy font-bold px-2 py-1">↻ Refresh</button>
+                  </div>
+                </div>
+
+                {/* Filter Tabs */}
+                <div className="flex flex-wrap gap-2 border-b border-slate-100 pb-3">
+                  {(["all", "pending", "approved", "rejected"] as const).map((st) => {
+                    const count = st === "all" 
+                      ? adminUsers.length 
+                      : adminUsers.filter(u => (u.status || "approved") === st).length;
+                    return (
+                      <button
+                        key={st}
+                        onClick={() => setAdminFilterStatus(st)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded capitalize transition-smooth ${
+                          adminFilterStatus === st
+                            ? "bg-navy text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {st} ({count})
+                      </button>
+                    );
+                  })}
                 </div>
                 
                 <div className="space-y-4">
-                  {adminUsers.filter(u => u.status === "pending").length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-8">No pending verifications at this time.</p>
+                  {adminUsers.filter(u => adminFilterStatus === "all" || (u.status || "approved") === adminFilterStatus).length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-8">No {adminFilterStatus !== "all" ? adminFilterStatus : ""} users found.</p>
                   ) : (
-                    adminUsers.filter(u => u.status === "pending").map((u) => (
-                      <div key={u.id} className="border border-slate-200 rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-navy text-sm">CA. {u.caName}</span>
-                            {u.hasCop && <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">Has CoP</span>}
+                    adminUsers
+                      .filter(u => adminFilterStatus === "all" || (u.status || "approved") === adminFilterStatus)
+                      .map((u) => {
+                        const currentStatus = u.status || "approved";
+                        return (
+                          <div key={u.id} className="border border-slate-200 rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0 hover:border-slate-300 transition-smooth bg-white">
+                            <div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-navy text-sm">CA. {u.caName}</span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                                  currentStatus === "approved" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                                  currentStatus === "rejected" ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                                  "bg-amber-50 text-amber-700 border border-amber-200"
+                                }`}>
+                                  {currentStatus}
+                                </span>
+                                {u.hasCop && <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">Has CoP</span>}
+                                {u.role === "admin" && <span className="text-[9px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold">Admin</span>}
+                              </div>
+                              <p className="text-xs text-slate-600 mt-1">ICAI Reg No: <span className="font-mono bg-slate-100 px-1 rounded">{u.membershipNo}</span></p>
+                              <p className="text-xs text-slate-500 mt-1">{u.email} {u.phone ? `| ${u.phone}` : ""}</p>
+                              <p className="text-[11px] text-slate-400 mt-1">Firm: {u.firmName || "Individual Practice"} &bull; {u.city || "N/A"}, {u.state || "N/A"}</p>
+                            </div>
+                            <div className="flex space-x-2">
+                              {currentStatus !== "approved" && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Approve CA. ${u.caName}?`)) {
+                                      await fetch("/api/admin/users", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "approved" })
+                                      });
+                                      fetchAdminUsers();
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold rounded shadow-xs transition-smooth"
+                                >
+                                  Approve
+                                </button>
+                              )}
+                              {currentStatus !== "rejected" && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Reject CA. ${u.caName}?`)) {
+                                      await fetch("/api/admin/users", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "rejected" })
+                                      });
+                                      fetchAdminUsers();
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded shadow-xs transition-smooth"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              {currentStatus !== "pending" && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Reset status for CA. ${u.caName} to pending?`)) {
+                                      await fetch("/api/admin/users", {
+                                        method: "PATCH",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "pending" })
+                                      });
+                                      fetchAdminUsers();
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-bold rounded shadow-xs transition-smooth"
+                                >
+                                  Set Pending
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-600 mt-1">ICAI Reg No: <span className="font-mono bg-slate-100 px-1 rounded">{u.membershipNo}</span></p>
-                          <p className="text-xs text-slate-500 mt-1">{u.email} | {u.phone}</p>
-                          {u.hasCop && u.firmName && (
-                            <p className="text-[11px] text-slate-400 mt-1">Firm: {u.firmName} ({u.city}, {u.state})</p>
-                          )}
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={async () => {
-                              if (confirm(`Approve CA. ${u.caName}?`)) {
-                                await fetch("/api/admin/users", {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "approved" })
-                                });
-                                fetchAdminUsers();
-                              }
-                            }}
-                            className="px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold rounded shadow-sm"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={async () => {
-                              if (confirm(`Reject CA. ${u.caName}?`)) {
-                                await fetch("/api/admin/users", {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "rejected" })
-                                });
-                                fetchAdminUsers();
-                              }
-                            }}
-                            className="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded shadow-sm"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                        );
+                      })
                   )}
                 </div>
               </div>

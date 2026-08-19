@@ -29,7 +29,11 @@ export default function DirectoryPage() {
   ];
 
   const IndianStates = [
-    "Delhi", "Maharashtra", "Karnataka", "Tamil Nadu", "West Bengal", "Gujarat", "Uttar Pradesh"
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
+    "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+    "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+    "Uttar Pradesh", "Uttarakhand", "West Bengal"
   ];
 
   useEffect(() => {
@@ -66,33 +70,41 @@ export default function DirectoryPage() {
 
   // Filter firms
   const filteredFirms = firms.filter((firm) => {
+    const q = (searchQuery || "").toLowerCase().trim();
+    const firmNameStr = (firm.firmName || "").toLowerCase();
+    const caNameStr = (firm.caName || "").toLowerCase();
+    const bioStr = (firm.bio || "").toLowerCase();
+
     // 1. Text Search
     const matchesSearch =
-      firm.firmName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      firm.caName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      firm.bio.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      firmNameStr.includes(q) ||
+      caNameStr.includes(q) ||
+      bioStr.includes(q);
 
     // 2. City Filter
     const matchesCity =
-      !selectedCity || firm.city.toLowerCase().includes(selectedCity.toLowerCase());
+      !selectedCity || (firm.city || "").toLowerCase().includes(selectedCity.toLowerCase().trim());
 
     // 3. State Filter
     const matchesState =
-      !selectedState || firm.state.toLowerCase() === selectedState.toLowerCase();
+      !selectedState || (firm.state || "").toLowerCase() === selectedState.toLowerCase().trim();
 
     // 4. Specialisation Filters (matches if firm has all selected options)
+    const specialisationsList = Array.isArray(firm.specialisations) ? firm.specialisations : [];
     const matchesSpecs =
       selectedSpecs.length === 0 ||
-      selectedSpecs.every((spec) => firm.specialisations.includes(spec));
+      selectedSpecs.every((spec) => specialisationsList.includes(spec));
 
     // 5. Experience Filter
+    const years = Number(firm.yearsOfPractice) || 0;
     let matchesExp = true;
     if (experienceRange === "0-5") {
-      matchesExp = firm.yearsOfPractice <= 5;
+      matchesExp = years <= 5;
     } else if (experienceRange === "5-15") {
-      matchesExp = firm.yearsOfPractice > 5 && firm.yearsOfPractice <= 15;
+      matchesExp = years > 5 && years <= 15;
     } else if (experienceRange === "15+") {
-      matchesExp = firm.yearsOfPractice > 15;
+      matchesExp = years > 15;
     }
 
     return matchesSearch && matchesCity && matchesState && matchesSpecs && matchesExp;

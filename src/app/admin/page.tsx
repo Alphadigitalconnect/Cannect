@@ -425,7 +425,7 @@ export default function AdminPage() {
                     <tbody className="divide-y divide-slate-100">
                       {dbData.users.map((member: any) => {
                         const matchingFirm = dbData.firms.find((f: any) => f.userId === member.id);
-                        const isVerified = member.verified === true || (matchingFirm && matchingFirm.verified === true);
+                        const isVerified = member.status === "approved" || member.verified === true || (matchingFirm && matchingFirm.status === "approved");
                         return (
                           <tr key={member.id} className="hover:bg-slate-550/5 hover:bg-slate-50/50">
                             <td className="p-4 font-bold text-navy">{member.caName}</td>
