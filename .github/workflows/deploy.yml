@@ -4,30 +4,69 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create deployment archive
-        run: |
-          git archive --format=zip HEAD -o deploy.zip
-          echo "Archive created: $(du -sh deploy.zip | cut -f1)"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
 
-      - name: Deploy to Hostinger
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build Next.js Application
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://frkubiivuwaptgdwiweq.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_e40mWvVPMn78G9ngJZUSFA_aTPK_CKh' }}
+        run: npm run build
+
+      - name: Trigger Hostinger Webhook (if configured)
+        if: ${{ env.HOSTINGER_WEBHOOK_URL != '' }}
+        env:
+          HOSTINGER_WEBHOOK_URL: ${{ secrets.HOSTINGER_WEBHOOK_URL }}
+        run: |
+          echo "Triggering Hostinger Auto-Deployment Webhook..."
+          curl -X POST "$HOSTINGER_WEBHOOK_URL"
+          echo "Webhook triggered successfully!"
+
+      - name: Deploy via Hostinger API (if token provided)
+        if: ${{ env.HOSTINGER_API_TOKEN != '' }}
         env:
           HOSTINGER_API_TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          HOSTINGER_USERNAME: ${{ secrets.HOSTINGER_USERNAME }}
         run: |
-          echo "Uploading archive to Hostinger..."
+          echo "Creating deployment archive..."
+          git archive --format=zip HEAD -o deploy.zip
+          echo "Archive size: $(du -sh deploy.zip | cut -f1)"
           
+          echo "Uploading archive to Hostinger API..."
           UPLOAD_RESPONSE=$(curl -s -X POST \
-            "https://api.hostinger.com/v1/hosting/nodes/${{ secrets.HOSTINGER_USERNAME }}/webservers/antiquewhite-ram-669569.hostingersite.com/applications/nodejs/deployments" \
+            "https://api.hostinger.com/v1/hosting/nodes/${HOSTINGER_USERNAME}/webservers/antiquewhite-ram-669569.hostingersite.com/applications/nodejs/deployments" \
             -H "Authorization: Bearer $HOSTINGER_API_TOKEN" \
             -F "archive=@deploy.zip")
           
-          echo "Upload response: $UPLOAD_RESPONSE"
+          echo "Hostinger Response: $UPLOAD_RESPONSE"
           echo "Deployment triggered successfully!"
+
+      - name: Deploy via SSH (if SSH Host configured)
+        if: ${{ env.HOSTINGER_SSH_HOST != '' }}
+        env:
+          HOSTINGER_SSH_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          HOSTINGER_SSH_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_SSH_PORT: ${{ secrets.HOSTINGER_SSH_PORT || '65002' }}
+        run: |
+          echo "Deploying to Hostinger via SSH..."
+          mkdir -p ~/.ssh
+          echo "$HOSTINGER_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no -p $HOSTINGER_SSH_PORT $HOSTINGER_SSH_USER@$HOSTINGER_SSH_HOST "cd ~/public_html || cd ~/cannect; git pull origin main; npm install; npm run build; pm2 restart cannect || npm run start &"

@@ -75,6 +75,40 @@ export default function LoginPage() {
           <p className="text-xs text-slate-500 mt-1">
             Access your firm profile and the Pan-India member directory.
           </p>
+
+          {/* Quick Demo Login Fill */}
+          <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200/80 rounded-xl text-left">
+            <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px] mb-2">
+              <span>⚡</span>
+              <span>Quick Demo Log In:</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("parimi@mail.ca.in");
+                  setPassword("Tarun@2329");
+                  setAgreedToTerms(true);
+                  setError("");
+                }}
+                className="px-2.5 py-1.5 bg-white hover:bg-amber-100/60 text-slate-700 hover:text-navy border border-amber-200 rounded-lg text-[11px] font-medium transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+              >
+                <span>👤</span> CA Member (Tarun)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("sushanthcherukuri25@gmail.com");
+                  setPassword("Sushanth@1234");
+                  setAgreedToTerms(true);
+                  setError("");
+                }}
+                className="px-2.5 py-1.5 bg-white hover:bg-amber-100/60 text-slate-700 hover:text-navy border border-amber-200 rounded-lg text-[11px] font-medium transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+              >
+                <span>🛡️</span> Admin (Sai Sushanth)
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Error Alert */}

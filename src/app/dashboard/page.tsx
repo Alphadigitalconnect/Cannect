@@ -111,7 +111,7 @@ function DashboardContent() {
   // Blog / Expertise Discussion Tab states
   const [myBlogs, setMyBlogs] = useState<any[]>([]);
   const [allBlogs, setAllBlogs] = useState<any[]>([]);
-  const [blogFeedTab, setBlogFeedTab] = useState<"feed" | "create" | "my-posts">("feed");
+  const [blogFeedTab, setBlogFeedTab] = useState<"feed" | "create" | "mine">("feed");
   const [blogTitle, setBlogTitle] = useState("");
   const [blogContent, setBlogContent] = useState("");
   const [blogTags, setBlogTags] = useState<string[]>([]);
