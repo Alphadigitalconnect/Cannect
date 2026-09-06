@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
   return (
@@ -25,11 +26,11 @@ function DashboardContent() {
   }, []);
 
   // Tabs: search (Directory), connections (My Network), chat (Direct Messages), profile (My Profile), admin (Admin Panel)
-  const [activeTab, setActiveTab] = useState<"search" | "connections" | "chat" | "profile" | "admin">("search");
+  const [activeTab, setActiveTab] = useState<"search" | "connections" | "chat" | "profile" | "blogs" | "admin">("search");
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["search", "connections", "chat", "profile", "admin"].includes(tabParam)) {
+    if (tabParam && ["search", "connections", "chat", "profile", "blogs", "admin"].includes(tabParam)) {
       setActiveTab(tabParam as any);
     }
   }, [searchParams]);
@@ -107,6 +108,31 @@ function DashboardContent() {
   const [updateError, setUpdateError] = useState("");
   const [updateSuccess, setUpdateSuccess] = useState("");
 
+  // Blog / Expertise Discussion Tab states
+  const [myBlogs, setMyBlogs] = useState<any[]>([]);
+  const [allBlogs, setAllBlogs] = useState<any[]>([]);
+  const [blogFeedTab, setBlogFeedTab] = useState<"feed" | "create" | "my-posts">("feed");
+  const [blogTitle, setBlogTitle] = useState("");
+  const [blogContent, setBlogContent] = useState("");
+  const [blogTags, setBlogTags] = useState<string[]>([]);
+  const [blogImage, setBlogImage] = useState<string>("");
+  const [blogImagePreview, setBlogImagePreview] = useState<string>("");
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogSuccess, setBlogSuccess] = useState("");
+  const [blogError, setBlogError] = useState("");
+  const [profileBlogs, setProfileBlogs] = useState<any[]>([]);
+  const [expandedBlogId, setExpandedBlogId] = useState<string | null>(null);
+
+  // Network filter & search states
+  const [networkSearchQuery, setNetworkSearchQuery] = useState("");
+  const [networkFilterSpec, setNetworkFilterSpec] = useState("all");
+  const [confirmRemovePeerId, setConfirmRemovePeerId] = useState<string | null>(null);
+
+  // Live Sync & Notifications states
+  const [liveSyncTime, setLiveSyncTime] = useState<string>("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+
   // Admin Tab states
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminFirms, setAdminFirms] = useState<any[]>([]);
@@ -131,6 +157,254 @@ function DashboardContent() {
       fetchAdminUsers();
     }
   }, [activeTab, user]);
+
+  // Fetch blogs for current user
+  const fetchMyBlogs = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/blogs?userId=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMyBlogs(data.blogs || []);
+      }
+    } catch (e) {
+      console.error("Error fetching blogs:", e);
+    }
+  };
+
+  // Fetch all community discussion posts
+  const fetchAllBlogs = async () => {
+    try {
+      const res = await fetch("/api/blogs");
+      if (res.ok) {
+        const data = await res.json();
+        setAllBlogs(data.blogs || []);
+      }
+    } catch (e) {
+      console.error("Error fetching community posts:", e);
+    }
+  };
+
+  // Fetch blogs for a specific user (for profile modal)
+  const fetchProfileBlogs = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/blogs?userId=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProfileBlogs(data.blogs || []);
+      }
+    } catch (e) {
+      console.error("Error fetching profile blogs:", e);
+      setProfileBlogs([]);
+    }
+  };
+
+  // Handle post image file upload
+  const handlePostImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setBlogError("Selected image exceeds 5MB limit. Please upload a smaller image file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setBlogImage(reader.result as string);
+      setBlogImagePreview(reader.result as string);
+      setBlogError("");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Create a new post / discussion
+  const handlePublishBlog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBlogError("");
+    setBlogSuccess("");
+    if (!blogTitle.trim() || !blogContent.trim()) {
+      setBlogError("Post title and content are required.");
+      return;
+    }
+    setBlogLoading(true);
+    try {
+      const res = await fetch("/api/blogs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          title: blogTitle.trim(),
+          content: blogContent.trim(),
+          tags: blogTags,
+          imageUrl: blogImage || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to publish post.");
+      setBlogSuccess("Your expertise / issue post was published successfully!");
+      setBlogTitle("");
+      setBlogContent("");
+      setBlogTags([]);
+      setBlogImage("");
+      setBlogImagePreview("");
+      setBlogFeedTab("feed");
+      fetchMyBlogs(user.id);
+      fetchAllBlogs();
+    } catch (err: any) {
+      setBlogError(err.message || "Failed to publish post.");
+    } finally {
+      setBlogLoading(false);
+    }
+  };
+
+  // Delete a post
+  const handleDeleteBlog = async (blogId: string) => {
+    if (!confirm("Are you sure you want to remove this published post?")) return;
+    try {
+      const res = await fetch(`/api/blogs?blogId=${blogId}&userId=${user.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchMyBlogs(user.id);
+        fetchAllBlogs();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete post.");
+      }
+    } catch (e) {
+      console.error("Error deleting post:", e);
+    }
+  };
+
+  // Post tag toggle
+  const handleBlogTagToggle = (tag: string) => {
+    if (blogTags.includes(tag)) {
+      setBlogTags(blogTags.filter((t) => t !== tag));
+    } else {
+      setBlogTags([...blogTags, tag]);
+    }
+  };
+
+  // Load blogs and discussions when switching to blogs tab
+  useEffect(() => {
+    if (activeTab === "blogs" && user) {
+      fetchMyBlogs(user.id);
+      fetchAllBlogs();
+    }
+  }, [activeTab, user]);
+
+  // Fetch profile blogs when viewing a profile
+  useEffect(() => {
+    if (viewProfilePeer) {
+      const peerId = viewProfilePeer.userId || viewProfilePeer.id;
+      fetchProfileBlogs(peerId);
+    } else {
+      setProfileBlogs([]);
+      setExpandedBlogId(null);
+    }
+  }, [viewProfilePeer]);
+
+  // Realtime Live Updates for Directory Users & Firms
+  useEffect(() => {
+    if (!user?.id) return;
+    setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+    let channel: any = null;
+    try {
+      if (supabase && typeof supabase.channel === "function") {
+        channel = supabase
+          .channel("directory-live-sync")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "users" },
+            () => {
+              fetchDirectoryUsers(user.id);
+              setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            }
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "firms" },
+            () => {
+              fetchDirectoryUsers(user.id);
+              setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            }
+          )
+          .subscribe();
+      }
+    } catch (err) {
+      console.warn("Realtime channel subscription error, falling back to interval:", err);
+    }
+
+    // Fast polling fallback every 12 seconds
+    const interval = setInterval(() => {
+      fetchDirectoryUsers(user.id);
+      fetchConnections(user.id);
+      setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }, 12000);
+
+    return () => {
+      if (channel && supabase && typeof supabase.removeChannel === "function") {
+        try {
+          supabase.removeChannel(channel);
+        } catch (e) {
+          // ignore
+        }
+      }
+      clearInterval(interval);
+    };
+  }, [user?.id]);
+
+  // Manual Directory Live Refresh
+  const handleManualDirectoryRefresh = async () => {
+    if (!user?.id) return;
+    setIsSyncing(true);
+    await Promise.all([
+      fetchDirectoryUsers(user.id),
+      fetchConnections(user.id)
+    ]);
+    setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    setTimeout(() => setIsSyncing(false), 600);
+  };
+
+  // Polite remove connection handler
+  const handleRemoveConnection = async (peerUserId: string) => {
+    if (!confirm("Are you sure you want to remove this connection from your network?")) return;
+    try {
+      const res = await fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "disconnect",
+          userId: user.id,
+          peerUserId
+        })
+      });
+      if (res.ok) {
+        fetchConnections(user.id);
+        fetchDirectoryUsers(user.id);
+        if (selectedChatPeer && (selectedChatPeer.userId === peerUserId || selectedChatPeer.id === peerUserId)) {
+          setSelectedChatPeer(null);
+        }
+        if (viewProfilePeer && (viewProfilePeer.userId === peerUserId || viewProfilePeer.id === peerUserId)) {
+          setViewProfilePeer(null);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to remove connection.");
+      }
+    } catch (e) {
+      console.error("Error removing connection:", e);
+    }
+  };
+
+  // Poll for new messages every 5 seconds when chat tab is active
+  useEffect(() => {
+    if (activeTab !== "chat" || !user) return;
+    const interval = setInterval(() => {
+      fetchMessages(user.id);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [activeTab, user]);
+
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [linkedInUrl, setLinkedInUrl] = useState("");
@@ -659,162 +933,402 @@ function DashboardContent() {
         </div>
       ) : (
       <>
-        <main className="max-w-6xl mx-auto px-4 py-6 h-full">
-        {/* Main Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
-          
-          {/* ==================== LEFT COLUMN SIDEBAR ==================== */}
-          <aside className="lg:col-span-3 space-y-6 flex flex-col h-full overflow-y-auto pr-2 pb-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            
-            {/* Profile Brief Info Card */}
-            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
-              <div className="h-12 bg-gradient-to-br from-skyblue to-sky-600"></div>
-              <div className="px-5 pb-4 text-center relative">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <img
-                    src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
-                    alt={user.caName}
-                    className="h-14 w-14 rounded-full border-2 border-white object-cover shadow-sm"
-                  />
+        {/* ==================== NOTIFICATIONS MODAL / DRAWER ==================== */}
+        {showNotificationsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy/60 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col border border-slate-200 overflow-hidden">
+              <div className="p-4 border-b border-slate-150 flex items-center justify-between bg-slate-50">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 rounded-xl bg-sky-50 text-skyblue border border-sky-100">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-sm font-bold text-navy">Notifications & Activity</h3>
+                    <p className="text-[11px] text-slate-400">Connection requests, messages, and platform activity</p>
+                  </div>
                 </div>
-                <div className="pt-8">
-                  <h3 className="text-xs font-bold text-navy flex items-center justify-center space-x-1">
-                    <span>CA. {user.caName}</span>
-                    {user.hasCop ? (
-                      <span title="Certificate of Practice" className="inline-flex items-center justify-center h-4 w-4 bg-yellow-400 text-white rounded-full text-[9px] shadow-sm cursor-help">
-                        ★
-                      </span>
-                    ) : (
-                      <span title="Member" className="inline-flex items-center justify-center h-4 w-4 bg-slate-400 text-white rounded-full text-[9px] shadow-sm cursor-help">
-                        ★
-                      </span>
-                    )}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed truncate px-1">
-                    {user.specialisations?.slice(0, 1).join(" | ") || "Practice Specialist"}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {user.city}, {user.state}
-                  </p>
-                  <div className="flex flex-col items-center mt-2 space-y-2">
-                    <span className="inline-block bg-sky-50 text-skyblue border border-sky-100 text-[11px] px-2.5 py-1 rounded font-bold shadow-xs">
-                      {connectedPeers.length} Connections
-                    </span>
-                    <button
-                      onClick={() => setShareCardPeer(user)}
-                      className="text-[9px] font-bold text-navy uppercase tracking-widest hover:text-skyblue flex items-center space-x-1 transition-smooth"
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                      <span>Share Profile</span>
-                    </button>
+                <button
+                  onClick={() => setShowNotificationsModal(false)}
+                  className="p-1.5 rounded-full text-slate-400 hover:text-navy hover:bg-slate-200 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto space-y-4 text-xs">
+                {/* Incoming Connection Requests */}
+                <div>
+                  <h4 className="font-bold text-navy uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
+                    <span>Pending Connection Requests ({incomingReqs.length})</span>
+                  </h4>
+                  {incomingReqs.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {incomingReqs.map((req) => (
+                        <div key={req.id} className="border border-slate-200 rounded-xl p-3 bg-slate-50/60 flex items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2.5">
+                            <img
+                              src={req.avatarUrl || `https://ui-avatars.com/api/?name=${req.senderName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
+                              alt={req.caName}
+                              className="h-9 w-9 rounded-full object-cover border border-slate-200"
+                            />
+                            <div>
+                              <p className="font-bold text-navy text-xs">CA. {req.caName}</p>
+                              <p className="text-[10px] text-slate-400">{req.city}, {req.state}</p>
+                            </div>
+                          </div>
+                          <div className="flex space-x-1.5">
+                            <button
+                              onClick={() => {
+                                handleRespondToRequest(req.id, "accepted");
+                                setShowNotificationsModal(false);
+                              }}
+                              className="px-2.5 py-1 bg-skyblue hover:bg-navy text-white font-bold text-[10px] rounded uppercase tracking-wider"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => handleRespondToRequest(req.id, "rejected")}
+                              className="px-2 py-1 border border-slate-250 text-slate-500 hover:bg-slate-100 font-bold text-[10px] rounded uppercase tracking-wider"
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 py-2 italic">No pending connection requests.</p>
+                  )}
+                </div>
+
+                {/* Directory Live Status Alert */}
+                <div className="border border-emerald-150 rounded-xl p-3 bg-emerald-50/50 flex items-start gap-2.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 animate-pulse flex-shrink-0"></span>
+                  <div>
+                    <p className="font-bold text-emerald-900 text-xs">Live Directory Sync Active</p>
+                    <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5">
+                      Your directory and network connections are continuously synchronized with the Pan-India database in real time.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Community Discussions Activity */}
+                <div className="border border-sky-150 rounded-xl p-3 bg-sky-50/50 flex items-start gap-2.5">
+                  <div className="w-6 h-6 rounded-lg bg-sky-100 flex items-center justify-center text-skyblue flex-shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-bold text-sky-950 text-xs">Expertise & Issues Discussions</p>
+                    <p className="text-[11px] text-sky-800 leading-relaxed mt-0.5">
+                      Share challenges or case-law queries faced in your practice with images and documents in the Expertise tab.
+                    </p>
                   </div>
                 </div>
               </div>
+
+              <div className="p-3 border-t border-slate-150 bg-slate-50 flex justify-end">
+                <button
+                  onClick={() => setShowNotificationsModal(false)}
+                  className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg uppercase tracking-wider"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+          </div>
+        )}
 
-            {/* Sidebar Navigation */}
-            <nav className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs space-y-1">
-              <button
-                onClick={() => setActiveTab("search")}
-                className={`flex items-center space-x-3 w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
-                  activeTab === "search"
-                    ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-navy"
-                }`}
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <span>Search the Directory</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("connections")}
-                className={`flex items-center justify-between w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
-                  activeTab === "connections"
-                    ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-navy"
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  <span>My Network</span>
+        <main className="max-w-6xl mx-auto px-3 sm:px-6 py-4 md:py-6 h-full flex flex-col">
+          
+          {/* ==================== MOBILE TOP BAR & NAVIGATION ==================== */}
+          <div className="block lg:hidden mb-4 space-y-3 flex-shrink-0">
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <img
+                  src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
+                  alt={user.caName}
+                  className="h-10 w-10 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                />
+                <div className="truncate">
+                  <h3 className="text-xs font-bold text-navy flex items-center space-x-1 truncate">
+                    <span>CA. {user.caName}</span>
+                    {user.hasCop && <span title="CoP Practitioner" className="text-amber-500 font-bold">★</span>}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 truncate max-w-[170px]">
+                    {user.firmName || "Independent Practice"} &bull; {user.city}
+                  </p>
                 </div>
+              </div>
+
+              {/* Mobile Bell Button */}
+              <button
+                type="button"
+                onClick={() => setShowNotificationsModal(true)}
+                className="relative p-2.5 rounded-xl bg-slate-50 hover:bg-sky-50 text-slate-600 hover:text-skyblue border border-slate-200 transition-colors flex-shrink-0"
+                title="Notifications"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
                 {incomingReqs.length > 0 && (
-                  <span className="h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center shadow-xs">
                     {incomingReqs.length}
                   </span>
                 )}
               </button>
+            </div>
 
-              <button
-                onClick={() => {
-                  setActiveTab("chat");
-                  if (connectedPeers.length > 0 && !selectedChatPeer) {
-                    setSelectedChatPeer(connectedPeers[0]);
-                  }
-                }}
-                className={`flex items-center justify-between w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
-                  activeTab === "chat"
-                    ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-navy"
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  <span>Chats & Groups</span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("profile")}
-                className={`flex items-center space-x-3 w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
-                  activeTab === "profile"
-                    ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-navy"
-                }`}
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>My Profile</span>
-              </button>
-              
-              {user?.role === "admin" && (
+            {/* Mobile Horizontal Tabs Pill Scroller */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {[
+                { id: "search", label: "Directory", icon: "🔍" },
+                { id: "connections", label: `My Network (${connectedPeers.length})`, icon: "👥", badge: incomingReqs.length },
+                { id: "chat", label: "Chats", icon: "💬" },
+                { id: "blogs", label: "Share Expertise", icon: "✍️" },
+                { id: "profile", label: "Profile", icon: "👤" },
+              ].map((tab) => (
                 <button
-                  onClick={() => setActiveTab("admin")}
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 flex items-center space-x-1.5 flex-shrink-0 ${
+                    activeTab === tab.id
+                      ? "bg-skyblue text-white shadow-xs"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  {Boolean(tab.badge && tab.badge > 0) && (
+                    <span className="h-4 w-4 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full flex-grow overflow-hidden">
+            
+            {/* ==================== LEFT COLUMN SIDEBAR (DESKTOP) ==================== */}
+            <aside className="hidden lg:flex lg:col-span-3 space-y-6 flex-col h-full overflow-y-auto pr-2 pb-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              
+              {/* Profile Brief Info Card */}
+              <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
+                <div className="h-12 bg-gradient-to-br from-skyblue to-sky-600"></div>
+                <div className="px-5 pb-4 text-center relative">
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <img
+                      src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
+                      alt={user.caName}
+                      className="h-14 w-14 rounded-full border-2 border-white object-cover shadow-sm"
+                    />
+                  </div>
+                  <div className="pt-8">
+                    <h3 className="text-xs font-bold text-navy flex items-center justify-center space-x-1">
+                      <span>CA. {user.caName}</span>
+                      {user.hasCop ? (
+                        <span title="Certificate of Practice" className="inline-flex items-center justify-center h-4 w-4 bg-yellow-400 text-white rounded-full text-[9px] shadow-sm cursor-help">
+                          ★
+                        </span>
+                      ) : (
+                        <span title="Member" className="inline-flex items-center justify-center h-4 w-4 bg-slate-400 text-white rounded-full text-[9px] shadow-sm cursor-help">
+                          ★
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed truncate px-1">
+                      {user.specialisations?.slice(0, 1).join(" | ") || "Practice Specialist"}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {user.city}, {user.state}
+                    </p>
+                    <div className="flex flex-col items-center mt-2 space-y-2">
+                      <span className="inline-block bg-sky-50 text-skyblue border border-sky-100 text-[11px] px-2.5 py-1 rounded font-bold shadow-xs">
+                        {connectedPeers.length} Connections
+                      </span>
+                      <button
+                        onClick={() => setShareCardPeer(user)}
+                        className="text-[9px] font-bold text-navy uppercase tracking-widest hover:text-skyblue flex items-center space-x-1 transition-smooth"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                        <span>Share Profile</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sidebar Navigation */}
+              <nav className="bg-white border border-slate-200 rounded-lg p-3 shadow-xs space-y-1">
+                <button
+                  onClick={() => setActiveTab("search")}
                   className={`flex items-center space-x-3 w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
-                    activeTab === "admin"
-                      ? "bg-amber-50 text-amber-600 border border-amber-200 shadow-xs"
+                    activeTab === "search"
+                      ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
                       : "text-slate-600 hover:bg-slate-50 hover:text-navy"
                   }`}
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  <span>Admin Panel</span>
+                  <span>Search the Directory</span>
                 </button>
-              )}
-            </nav>
 
-          </aside>
+                <button
+                  onClick={() => setActiveTab("connections")}
+                  className={`flex items-center justify-between w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
+                    activeTab === "connections"
+                      ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span>My Network</span>
+                  </div>
+                  {incomingReqs.length > 0 && (
+                    <span className="h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                      {incomingReqs.length}
+                    </span>
+                  )}
+                </button>
 
-          {/* ==================== MAIN WORKSPACE CENTER COLUMN ==================== */}
-          <section className="lg:col-span-9 h-full overflow-y-auto pb-20 pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-6">
+                <button
+                  onClick={() => {
+                    setActiveTab("chat");
+                    if (connectedPeers.length > 0 && !selectedChatPeer) {
+                      setSelectedChatPeer(connectedPeers[0]);
+                    }
+                  }}
+                  className={`flex items-center justify-between w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
+                    activeTab === "chat"
+                      ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <span>Chats & Groups</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("blogs")}
+                  className={`flex items-center space-x-3 w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
+                    activeTab === "blogs"
+                      ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+                  }`}
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                  </svg>
+                  <span>Share Expertise & Posts</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("profile")}
+                  className={`flex items-center space-x-3 w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
+                    activeTab === "profile"
+                      ? "bg-sky-50 text-skyblue border border-sky-100 shadow-xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+                  }`}
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>My Profile</span>
+                </button>
+
+                {/* Notifications Trigger in Sidebar */}
+                <button
+                  onClick={() => setShowNotificationsModal(true)}
+                  className="flex items-center justify-between w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-navy"
+                >
+                  <div className="flex items-center space-x-3">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span>Notifications</span>
+                  </div>
+                  {incomingReqs.length > 0 && (
+                    <span className="h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                      {incomingReqs.length}
+                    </span>
+                  )}
+                </button>
+                
+                {user?.role === "admin" && (
+                  <button
+                    onClick={() => setActiveTab("admin")}
+                    className={`flex items-center space-x-3 w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
+                      activeTab === "admin"
+                        ? "bg-amber-50 text-amber-600 border border-amber-200 shadow-xs"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-navy"
+                    }`}
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                    </svg>
+                    <span>Admin Panel</span>
+                  </button>
+                )}
+              </nav>
+
+            </aside>
+
+            {/* ==================== MAIN WORKSPACE CENTER COLUMN ==================== */}
+            <section className="lg:col-span-9 h-full overflow-y-auto pb-20 pr-1 sm:pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-6">
             
             {/* ==================== TAB 1: DIRECTORY SEARCH ==================== */}
             {activeTab === "search" && (
               <div className="space-y-6">
-                <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-6">
-                  <div className="border-b border-slate-100 pb-3 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-navy">Directory</h2>
-                    <span className="text-[11px] text-slate-500 font-bold bg-slate-100 px-3 py-1 rounded shadow-xs">{filteredPeers.length} members found</span>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-6">
+                  <div className="border-b border-slate-150 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg md:text-xl font-serif font-bold text-navy">Pan-India Member Directory</h2>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full shadow-2xs">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span>Live Updation Active</span>
+                        </span>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-slate-500 mt-1">
+                        Discover verified Chartered Accountants • Auto-syncs in real time when new members join
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={handleManualDirectoryRefresh}
+                        disabled={isSyncing}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-skyblue bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 px-3 py-1.5 rounded-lg transition-colors shadow-2xs cursor-pointer"
+                        title="Sync latest members from database"
+                      >
+                        <svg className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-skyblue" : "text-slate-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>{isSyncing ? "Syncing..." : "Sync Now"}</span>
+                      </button>
+                      <span className="text-xs text-slate-600 font-bold bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                        {filteredPeers.length} Members
+                      </span>
+                    </div>
                   </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -964,37 +1478,52 @@ function DashboardContent() {
             {activeTab === "connections" && (
               <div className="space-y-6">
                 
+                {/* Incoming Requests Section */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-150 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-base font-serif font-bold text-navy">
+                        Pending Connection Requests
+                      </h3>
+                      {incomingReqs.length > 0 && (
+                        <span className="h-5 px-2 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                          {incomingReqs.length}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Review requests sent by fellow practitioners
+                    </span>
+                  </div>
 
-                {/* Incoming Requests */}
-                <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-4">
-                  <h3 className="text-lg font-bold text-navy border-b border-slate-100 pb-2 uppercase tracking-wider">
-                    Received Request Alerts ({incomingReqs.length})
-                  </h3>
                   {incomingReqs.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                       {incomingReqs.map((req) => (
-                        <div key={req.id} className="border border-slate-200 rounded p-3 bg-slate-50/50 flex justify-between items-center gap-2">
+                        <div key={req.id} className="border border-slate-200/90 hover:border-skyblue/50 rounded-xl p-4 bg-slate-50/50 hover:bg-white transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-2xs">
                           <div className="flex items-center space-x-3">
                             <img
                               src={req.avatarUrl || `https://ui-avatars.com/api/?name=${req.senderName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
                               alt={req.caName}
-                              className="h-10 w-10 rounded-full object-cover border border-slate-150 flex-shrink-0"
+                              className="h-11 w-11 rounded-full object-cover border border-slate-200 flex-shrink-0"
                             />
                             <div>
                               <h4 className="text-xs font-bold text-navy">CA. {req.caName}</h4>
                               <p className="text-[11px] text-slate-500 leading-tight">{req.city}, {req.state}</p>
+                              {req.firmName && (
+                                <p className="text-[10px] text-slate-400 mt-0.5 font-medium">{req.firmName}</p>
+                              )}
                             </div>
                           </div>
-                          <div className="flex space-x-2">
+                          <div className="flex space-x-2 w-full sm:w-auto justify-end pt-1 sm:pt-0">
                             <button
                               onClick={() => handleRespondToRequest(req.id, "accepted")}
-                              className="px-3 py-1.5 bg-skyblue hover:bg-sky-650 text-white font-bold text-[11px] rounded uppercase tracking-wider"
+                              className="px-3.5 py-1.5 bg-skyblue hover:bg-navy text-white font-bold text-[11px] rounded-lg uppercase tracking-wider transition-colors shadow-2xs"
                             >
                               Accept
                             </button>
                             <button
                               onClick={() => handleRespondToRequest(req.id, "rejected")}
-                              className="px-3 py-1.5 border border-slate-250 text-slate-500 hover:bg-slate-150 font-bold text-[11px] rounded uppercase tracking-wider"
+                              className="px-3 py-1.5 border border-slate-250 text-slate-500 hover:bg-slate-100 font-bold text-[11px] rounded-lg uppercase tracking-wider transition-colors"
                             >
                               Ignore
                             </button>
@@ -1003,114 +1532,190 @@ function DashboardContent() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 text-center py-4">No pending incoming networking requests.</p>
+                    <p className="text-xs text-slate-400 text-center py-4 italic">No pending connection requests at this time.</p>
                   )}
                 </div>
 
-                {/* Connections list with disconnect buttons */}
-                <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-6">
-                  <h3 className="text-lg font-bold text-navy border-b border-slate-100 pb-2 uppercase tracking-wider">
-                    My Professional Network ({connectedPeers.length})
-                  </h3>
+                {/* Network Overview & Search */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-6">
+                  <div className="border-b border-slate-150 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="text-lg font-serif font-bold text-navy">
+                          My Professional Network
+                        </h3>
+                        <span className="text-xs font-bold text-skyblue bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-full">
+                          {connectedPeers.length} {connectedPeers.length === 1 ? "Connection" : "Connections"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Colleagues in your verified circle. Click &ldquo;View Profile&rdquo; to access verified contact particulars.
+                      </p>
+                    </div>
+
+                    {/* Network Search Input */}
+                    <div className="w-full sm:w-72">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search in network (name, city)..."
+                          value={networkSearchQuery}
+                          onChange={(e) => setNetworkSearchQuery(e.target.value)}
+                          className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus-ring text-navy"
+                        />
+                        <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
                   {connectedPeers.length > 0 ? (
                     <div className="space-y-6">
+                      {/* Filter by Category */}
                       {([
+                        { id: "all", name: "All Specialties" },
                         { id: "direct-tax", name: "Direct Tax", specs: ["Direct Tax"] },
                         { id: "indirect-tax", name: "Indirect Tax", specs: ["GST & Indirect Tax", "Indirect Tax", "GST & Indirect Taxation"] },
                         { id: "transfer-pricing", name: "Transfer Pricing", specs: ["Transfer Pricing"] },
-                        { id: "audit-assurance", name: "Audit and Assurance", specs: ["Audit & Assurance", "Audit and Assurance"] },
-                        { id: "roc-compliances", name: "ROC Compliances", specs: ["Company Law / ROC", "ROC Compliances", "ROC"] },
-                        { id: "legal-compliances", name: "Legal Compliances", specs: ["Legal Compliances"] },
-                        { id: "startup", name: "Startup", specs: ["Startup Advisory", "Startup"] },
-                        { id: "other-compliances", name: "Other Compliances", specs: [], isOther: true }
-                      ] as { id: string; name: string; specs: string[]; isOther?: boolean; }[]).map((cat) => {
+                        { id: "audit-assurance", name: "Audit & Assurance", specs: ["Audit & Assurance", "Audit and Assurance"] },
+                        { id: "roc-compliances", name: "ROC & Company Law", specs: ["Company Law / ROC", "ROC Compliances", "ROC"] },
+                        { id: "startup", name: "Startup Advisory", specs: ["Startup Advisory", "Startup"] },
+                      ] as { id: string; name: string; specs?: string[] }[]).map((cat) => {
+                        // Filter peers by search query and category
                         const peers = connectedPeers.filter((peer) => {
-                          if (cat.isOther) {
-                            const allDefinedSpecs = [
-                              "Direct Tax", "GST & Indirect Tax", "Indirect Tax",
-                              "Transfer Pricing", "Audit & Assurance", "Audit and Assurance",
-                              "Company Law / ROC", "ROC Compliances", "ROC", "Legal Compliances", "Startup Advisory", "Startup"
-                            ];
-                            return !peer.specialisations || peer.specialisations.length === 0 || 
-                                   peer.specialisations.every((s: string) => !allDefinedSpecs.includes(s));
-                          }
-                          return peer.specialisations && peer.specialisations.some((s: string) => cat.specs.includes(s));
+                          const matchesSearch = !networkSearchQuery.trim() || 
+                            (peer.caName || "").toLowerCase().includes(networkSearchQuery.toLowerCase()) ||
+                            (peer.firmName || "").toLowerCase().includes(networkSearchQuery.toLowerCase()) ||
+                            (peer.city || "").toLowerCase().includes(networkSearchQuery.toLowerCase()) ||
+                            (peer.state || "").toLowerCase().includes(networkSearchQuery.toLowerCase());
+                          
+                          if (!matchesSearch) return false;
+
+                          if (cat.id === "all") return true;
+
+                          return peer.specialisations && peer.specialisations.some((s: string) => cat.specs?.includes(s));
                         });
 
+                        // Only show non-empty category sections, or only show the "All" section if searching
+                        if (cat.id !== "all" && networkSearchQuery.trim()) return null;
+                        if (cat.id === "all" && !networkSearchQuery.trim() && connectedPeers.length > 0) return null;
                         if (peers.length === 0) return null;
 
                         return (
-                          <div key={cat.id} className="border border-slate-200 rounded-lg p-4 bg-slate-50/30 space-y-4 shadow-xs">
-                            <div className="flex items-center justify-between border-b border-slate-150 pb-2">
+                          <div key={cat.id} className="border border-slate-200/90 rounded-2xl p-4 sm:p-5 bg-slate-50/40 space-y-4 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-150 pb-2.5">
                               <h4 className="text-xs font-bold text-navy uppercase tracking-wider flex items-center space-x-2">
-                                <span className="h-2 w-2 rounded-full bg-skyblue animate-pulse"></span>
+                                <span className="h-2 w-2 rounded-full bg-skyblue"></span>
                                 <span>{cat.name}</span>
                               </h4>
-                              <span className="text-[11px] font-bold text-skyblue bg-sky-50 border border-sky-100 px-3 py-1 rounded shadow-2xs">
-                                {peers.length} {peers.length === 1 ? "CA" : "CAs"}
+                              <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full shadow-2xs">
+                                {peers.length} {peers.length === 1 ? "Practitioner" : "Practitioners"}
                               </span>
                             </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {peers.map((peer) => (
-                                <div key={peer.id} className="border border-slate-200 rounded p-4 bg-white shadow-xs space-y-3 flex flex-col justify-between hover:border-slate-350 transition-smooth">
+                                <div
+                                  key={peer.id}
+                                  className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-4 flex flex-col justify-between hover:border-skyblue/50 hover:shadow-md transition-all duration-200"
+                                >
                                   <div className="space-y-3">
-                                    <div className="flex items-center space-x-3">
+                                    {/* Member Header (No direct phone or email on card) */}
+                                    <div className="flex items-start space-x-3">
                                       <img
                                         src={peer.avatarUrl || `https://ui-avatars.com/api/?name=${peer.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
                                         alt={peer.caName}
-                                        className="h-12 w-12 rounded-full object-cover border border-slate-100"
+                                        className="h-12 w-12 rounded-full object-cover border border-slate-200 flex-shrink-0 shadow-2xs"
                                       />
-                                      <div>
-                                        <h4 className="text-xs font-bold text-navy">CA. {peer.caName}</h4>
-                                        <p className="text-[11px] text-slate-500">{peer.city}, {peer.state}</p>
+                                      <div className="flex-grow min-w-0">
+                                        <div className="flex items-center space-x-1.5 flex-wrap">
+                                          <h4 className="text-sm font-bold text-navy truncate">CA. {peer.caName}</h4>
+                                          {peer.hasCop ? (
+                                            <span title="Certificate of Practice Holder" className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                                              COP
+                                            </span>
+                                          ) : (
+                                            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded">
+                                              Member
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <p className="text-xs text-slate-600 font-medium truncate mt-0.5">
+                                          {peer.firmName || "Independent Practice"}
+                                        </p>
+                                        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                                          <span>📍 {peer.city}, {peer.state}</span>
+                                          {peer.yearsOfPractice && (
+                                            <span>&bull; {peer.yearsOfPractice} Yrs Practice</span>
+                                          )}
+                                        </p>
                                       </div>
                                     </div>
+
+                                    {/* Specialisation badges */}
                                     {peer.specialisations && peer.specialisations.length > 0 && (
-                                      <div className="flex flex-wrap gap-1 mt-1">
-                                        {peer.specialisations.map((spec: string) => (
-                                          <span key={spec} className="bg-sky-50 text-skyblue border border-sky-100 text-[9px] px-1.5 py-0.5 rounded font-medium">
+                                      <div className="flex flex-wrap gap-1.5 pt-1">
+                                        {peer.specialisations.slice(0, 3).map((spec: string) => (
+                                          <span key={spec} className="bg-sky-50 text-skyblue border border-sky-150 text-[10px] px-2 py-0.5 rounded-md font-semibold">
                                             {spec}
                                           </span>
                                         ))}
+                                        {peer.specialisations.length > 3 && (
+                                          <span className="text-[10px] text-slate-400 px-1 font-semibold self-center">
+                                            +{peer.specialisations.length - 3} more
+                                          </span>
+                                        )}
                                       </div>
                                     )}
-                                    <div className="bg-slate-50 border border-slate-150 p-3 rounded text-[11px] space-y-1.5">
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-slate-500">Email:</span>
-                                        <span className="text-navy font-semibold">{peer.email}</span>
-                                      </div>
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-slate-500">Phone:</span>
-                                        <span className="text-navy font-semibold">{peer.phone}</span>
-                                      </div>
+
+                                    {/* Privacy Note: Contact info strictly in profile */}
+                                    <div className="bg-slate-50/80 border border-slate-150/70 px-3 py-2 rounded-lg text-[11px] text-slate-500 flex items-center justify-between">
+                                      <span className="flex items-center gap-1 text-slate-500">
+                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                        </svg>
+                                        <span>Direct Contact Particulars</span>
+                                      </span>
+                                      <span className="text-navy font-bold text-[10px] uppercase tracking-wider">
+                                        Protected &bull; In Profile
+                                      </span>
                                     </div>
                                   </div>
                                   
-                                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                                  {/* Action Buttons */}
+                                  <div className="flex items-center justify-between pt-3 border-t border-slate-150/80 gap-2">
                                     <div className="flex space-x-2">
                                       <button
                                         onClick={() => {
                                           setSelectedChatPeer(peer);
                                           setActiveTab("chat");
                                         }}
-                                        className="px-4 py-1.5 bg-skyblue hover:bg-navy text-white font-bold text-[11px] rounded shadow-xs uppercase tracking-wider transition-smooth"
+                                        className="px-3.5 py-1.5 bg-skyblue hover:bg-navy text-white font-bold text-xs rounded-lg shadow-2xs uppercase tracking-wider transition-colors inline-flex items-center gap-1"
                                       >
-                                        Message
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                        <span>Message</span>
                                       </button>
                                       
                                       <button
                                         onClick={() => setViewProfilePeer(peer)}
-                                        className="px-4 py-1.5 bg-slate-100 hover:bg-navy hover:text-white text-navy font-bold text-[11px] rounded shadow-xs uppercase tracking-wider inline-flex items-center transition-smooth border border-slate-200"
+                                        className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-navy font-bold text-xs rounded-lg shadow-2xs uppercase tracking-wider transition-colors inline-flex items-center gap-1"
                                       >
-                                        View Profile
+                                        <span>View Profile</span>
                                       </button>
                                     </div>
 
+                                    {/* Polite Remove Connection Button */}
                                     <button
-                                      onClick={() => handleDisconnect(peer.userId)}
-                                      className="text-[9px] text-rose-500 hover:text-rose-600 font-bold uppercase tracking-wider"
+                                      type="button"
+                                      onClick={() => handleRemoveConnection(peer.userId)}
+                                      className="text-[11px] text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded transition-colors font-semibold uppercase tracking-wider"
+                                      title="Remove from my network connections"
                                     >
-                                      Disconnect
+                                      Remove Connection
                                     </button>
                                   </div>
                                 </div>
@@ -1121,7 +1726,18 @@ function DashboardContent() {
                       })}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 text-center py-8">No network connections established yet. Search the directory to request connections.</p>
+                    <div className="text-center py-12 space-y-3">
+                      <div className="w-12 h-12 rounded-full bg-sky-50 text-skyblue mx-auto flex items-center justify-center text-xl">
+                        👥
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium">No network connections established yet.</p>
+                      <button
+                        onClick={() => setActiveTab("search")}
+                        className="px-4 py-2 bg-skyblue text-white text-xs font-bold rounded-lg uppercase tracking-wider hover:bg-navy transition-colors shadow-2xs"
+                      >
+                        Search Directory to Connect &rarr;
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1800,8 +2416,516 @@ function DashboardContent() {
                 )}
               </div>
             )}
+
+            {/* ==================== TAB 5: SHARE EXPERTISE & ISSUES FORUM ==================== */}
+            {activeTab === "blogs" && (
+              <div className="space-y-6">
+                {/* Header Banner */}
+                <div className="bg-gradient-to-r from-navy via-navy to-slate-800 text-white rounded-xl p-6 shadow-md border border-slate-700/50">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center space-x-2 bg-skyblue/20 text-skyblue border border-skyblue/30 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                        <span className="w-2 h-2 rounded-full bg-skyblue animate-ping"></span>
+                        <span>CA Practitioner Forum</span>
+                      </div>
+                      <h2 className="text-xl font-extrabold text-white tracking-tight leading-snug">
+                        Share your expertise and issues you have faced in your CA practice or career so far
+                      </h2>
+                      <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
+                        A peer-to-peer discussion forum for Chartered Accountants to crowd-source practical casework solutions, navigate assessment hurdle notices, debate tribunal precedents, or share lessons from your professional journey.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setBlogFeedTab(blogFeedTab === "create" ? "feed" : "create")}
+                      className={`inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-lg text-xs font-bold transition-all shadow-sm flex-shrink-0 ${
+                        blogFeedTab === "create"
+                          ? "bg-slate-700 text-white hover:bg-slate-600"
+                          : "bg-skyblue text-white hover:bg-sky-600"
+                      }`}
+                    >
+                      {blogFeedTab === "create" ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                          </svg>
+                          <span>Back to Discussions</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                          </svg>
+                          <span>Share Experience / Issue</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Sub-tab Navigation */}
+                  <div className="flex items-center space-x-2 mt-6 pt-4 border-t border-slate-700/60 overflow-x-auto">
+                    <button
+                      onClick={() => setBlogFeedTab("feed")}
+                      className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap ${
+                        blogFeedTab === "feed"
+                          ? "bg-white text-navy shadow-sm"
+                          : "text-slate-300 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                      </svg>
+                      <span>Community Discussions</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${blogFeedTab === "feed" ? "bg-slate-100 text-navy" : "bg-white/20 text-white"}`}>
+                        {allBlogs.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setBlogFeedTab("create")}
+                      className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap ${
+                        blogFeedTab === "create"
+                          ? "bg-white text-navy shadow-sm"
+                          : "text-slate-300 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span>Post Experience / Issue</span>
+                    </button>
+
+                    <button
+                      onClick={() => setBlogFeedTab("mine")}
+                      className={`px-4 py-2 rounded-md text-xs font-bold transition-all flex items-center space-x-2 whitespace-nowrap ${
+                        blogFeedTab === "mine"
+                          ? "bg-white text-navy shadow-sm"
+                          : "text-slate-300 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span>My Shared Posts</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${blogFeedTab === "mine" ? "bg-slate-100 text-navy" : "bg-white/20 text-white"}`}>
+                        {myBlogs.length}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notifications & Status Alerts */}
+                {blogSuccess && (
+                  <div className="bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 text-xs p-3.5 rounded-lg flex items-center justify-between shadow-xs">
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="font-semibold">{blogSuccess}</span>
+                    </div>
+                    <button onClick={() => setBlogSuccess("")} className="text-emerald-700 hover:text-emerald-900 text-xs font-bold">✕</button>
+                  </div>
+                )}
+                {blogError && (
+                  <div className="bg-rose-50 border-l-4 border-rose-500 text-rose-800 text-xs p-3.5 rounded-lg flex items-center justify-between shadow-xs">
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span className="font-semibold">{blogError}</span>
+                    </div>
+                    <button onClick={() => setBlogError("")} className="text-rose-700 hover:text-rose-900 text-xs font-bold">✕</button>
+                  </div>
+                )}
+
+                {/* ================= VIEW: WRITE / PUBLISH NEW POST ================= */}
+                {blogFeedTab === "create" && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-5">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-navy uppercase tracking-wider flex items-center space-x-2">
+                          <svg className="h-5 w-5 text-skyblue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span>Share Experience, Case Hurdle, or Practice Insight</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Share challenges faced in statutory audits, ITAT appeals, faceless assessments, MCA filings, or staff scaling.
+                        </p>
+                      </div>
+                    </div>
+
+                    <form onSubmit={handlePublishBlog} className="space-y-5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Post Title / Subject Line *
+                        </label>
+                        <input
+                          type="text"
+                          value={blogTitle}
+                          onChange={(e) => setBlogTitle(e.target.value)}
+                          placeholder="e.g., Practical challenges with Section 148A reassessment notices or GST ITC matching under Rule 36(4)"
+                          className="w-full text-sm p-3.5 bg-slate-50 border border-slate-200 rounded-lg focus-ring text-navy font-semibold placeholder:text-slate-400"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Detailed Experience / Issue Description *
+                        </label>
+                        <textarea
+                          value={blogContent}
+                          onChange={(e) => setBlogContent(e.target.value)}
+                          placeholder="Detail the case background, the statutory issue or operational difficulty encountered, how you approached it, and what questions or recommendations you have for fellow CAs..."
+                          rows={8}
+                          className="w-full text-sm p-3.5 bg-slate-50 border border-slate-200 rounded-lg focus-ring text-navy leading-relaxed resize-y placeholder:text-slate-400"
+                          required
+                        />
+                      </div>
+
+                      {/* Image Upload Area */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                          Attach Supporting Screenshot or Document Image (Optional)
+                        </label>
+                        
+                        {blogImagePreview ? (
+                          <div className="relative border border-slate-200 rounded-lg p-3 bg-slate-50 max-w-md">
+                            <img
+                              src={blogImagePreview}
+                              alt="Upload preview"
+                              className="w-full max-h-56 object-cover rounded-md border border-slate-200 shadow-xs"
+                            />
+                            <div className="mt-2 flex items-center justify-between text-xs">
+                              <span className="text-emerald-600 font-semibold flex items-center space-x-1">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>Image attached</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBlogImage("");
+                                  setBlogImagePreview("");
+                                }}
+                                className="text-rose-500 hover:text-rose-700 font-bold uppercase text-[10px] tracking-wider"
+                              >
+                                Remove Image
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-slate-200 rounded-lg p-5 hover:border-skyblue bg-slate-50/50 transition-colors text-center cursor-pointer relative">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handlePostImageChange}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <svg className="w-8 h-8 text-slate-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <p className="text-xs font-bold text-navy">Click or drag image here to attach</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Supports PNG, JPG, WebP up to 5MB (charts, portal error screenshots, tribunal extracts)</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Tag Selection */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                          Practice Domain Tags
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {specialisationOptions.map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => handleBlogTagToggle(tag)}
+                              className={`text-[11px] px-3 py-1.5 rounded-md border font-semibold transition-all ${
+                                blogTags.includes(tag)
+                                  ? "bg-skyblue text-white border-skyblue shadow-xs"
+                                  : "bg-white text-slate-600 border-slate-200 hover:border-skyblue hover:text-skyblue"
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Submit Actions */}
+                      <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setBlogFeedTab("feed")}
+                          className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-navy transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={blogLoading}
+                          className="px-6 py-2.5 bg-skyblue hover:bg-navy text-white font-bold text-xs rounded-lg transition-all shadow-sm uppercase tracking-wider disabled:opacity-50 flex items-center space-x-2"
+                        >
+                          {blogLoading && (
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                          <span>{blogLoading ? "Publishing to Network..." : "Publish Post"}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* ================= VIEW: COMMUNITY DISCUSSIONS FEED ================= */}
+                {blogFeedTab === "feed" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Recent Peer Experiences & Discussions ({allBlogs.length})
+                      </span>
+                      <button
+                        onClick={fetchAllBlogs}
+                        className="text-xs text-skyblue hover:text-navy font-bold flex items-center space-x-1"
+                      >
+                        <span>↻ Refresh Feed</span>
+                      </button>
+                    </div>
+
+                    {allBlogs.length === 0 ? (
+                      <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-xs">
+                        <div className="w-14 h-14 bg-sky-50 rounded-full flex items-center justify-center text-skyblue mx-auto mb-3">
+                          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                          </svg>
+                        </div>
+                        <h4 className="text-sm font-bold text-navy">No Community Posts Yet</h4>
+                        <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-4">
+                          Be the first to share an interesting case study, assessment ruling, or practice challenge with the CAnnect network.
+                        </p>
+                        <button
+                          onClick={() => setBlogFeedTab("create")}
+                          className="px-5 py-2.5 bg-skyblue hover:bg-navy text-white text-xs font-bold rounded-lg transition-all shadow-xs"
+                        >
+                          Start First Discussion
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {allBlogs.map((blog: any) => {
+                          const author = blog.user || {};
+                          const authorName = author.caName || blog.caName || "Chartered Accountant";
+                          const authorFirm = author.firmName || blog.firmName || "Chartered Practice";
+                          const authorCity = author.city || blog.city;
+                          const authorState = author.state || blog.state;
+
+                          return (
+                            <article
+                              key={blog.id}
+                              className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-5 shadow-xs transition-all space-y-4"
+                            >
+                              {/* Post Author Bar */}
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div className="flex items-center space-x-3">
+                                  <img
+                                    src={
+                                      author.avatarUrl ||
+                                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                        authorName
+                                      )}&background=e0f2fe&color=0284c7&size=100`
+                                    }
+                                    alt={authorName}
+                                    className="w-10 h-10 rounded-full border border-slate-200 object-cover"
+                                  />
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <h4 className="text-xs font-extrabold text-navy">
+                                        CA. {authorName}
+                                      </h4>
+                                      <span className="text-[9px] bg-sky-50 text-skyblue border border-sky-150 px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                                        Verified CA
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">
+                                      {authorFirm} {authorCity ? `• ${authorCity}, ${authorState}` : ""}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-[10px] text-slate-400 font-medium hidden sm:inline-block">
+                                    {new Date(blog.timestamp).toLocaleDateString("en-IN", {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}
+                                  </span>
+                                  {author.id && author.id !== user?.id && (
+                                    <button
+                                      onClick={() => setViewProfilePeer(author)}
+                                      className="text-[11px] font-bold text-skyblue hover:text-navy border border-sky-100 hover:border-navy px-2.5 py-1 rounded transition-colors"
+                                    >
+                                      View Profile
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Title & Tags */}
+                              <div>
+                                <h3 className="text-base font-bold text-navy leading-snug">
+                                  {blog.title}
+                                </h3>
+                                {blog.tags && blog.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {blog.tags.map((tag: string) => (
+                                      <span
+                                        key={tag}
+                                        className="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded font-semibold"
+                                      >
+                                        #{tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Post Body Content */}
+                              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line text-justify">
+                                {blog.content}
+                              </p>
+
+                              {/* Attached Image if Present */}
+                              {blog.imageUrl && (
+                                <div className="pt-2">
+                                  <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-50 max-h-96 flex items-center justify-center">
+                                    <img
+                                      src={blog.imageUrl}
+                                      alt={blog.title}
+                                      className="max-h-96 w-full object-contain rounded-lg"
+                                      loading="lazy"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Footer Meta */}
+                              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+                                <span className="flex items-center space-x-1.5 text-slate-500">
+                                  <svg className="w-3.5 h-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                  <span>Verified Practitioner Casework</span>
+                                </span>
+                                <span className="text-slate-400">
+                                  Posted on {new Date(blog.timestamp).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                                </span>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ================= VIEW: MY SHARED POSTS ================= */}
+                {blogFeedTab === "mine" && (
+                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="text-sm font-bold text-navy uppercase tracking-wider flex items-center space-x-2">
+                        <svg className="h-5 w-5 text-skyblue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                        </svg>
+                        <span>My Published Discussions ({myBlogs.length})</span>
+                      </h3>
+                      <button
+                        onClick={() => setBlogFeedTab("create")}
+                        className="text-xs font-bold text-skyblue hover:text-navy"
+                      >
+                        + Create New Post
+                      </button>
+                    </div>
+
+                    {myBlogs.length === 0 ? (
+                      <div className="text-center py-10 text-slate-400">
+                        <svg className="h-12 w-12 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                        </svg>
+                        <p className="text-xs font-semibold text-navy">You haven't shared any experiences or issues yet.</p>
+                        <p className="text-[11px] mt-1 text-slate-500">Post casework hurdles or solutions to build your professional reputation!</p>
+                        <button
+                          onClick={() => setBlogFeedTab("create")}
+                          className="mt-3 px-4 py-2 bg-skyblue text-white text-xs font-bold rounded shadow-xs hover:bg-navy transition-colors"
+                        >
+                          Write a Post Now
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {myBlogs.map((blog: any) => (
+                          <div
+                            key={blog.id}
+                            className="border border-slate-200 rounded-lg p-4 hover:shadow-sm transition-smooth space-y-3"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-grow">
+                                <h4 className="text-sm font-bold text-navy leading-snug">{blog.title}</h4>
+                                <p className="text-[10px] text-slate-400 mt-1 font-semibold">
+                                  {new Date(blog.timestamp).toLocaleDateString("en-IN", {
+                                    year: "numeric",
+                                    month: "long",
+                                    day: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteBlog(blog.id)}
+                                className="text-[10px] font-bold text-rose-500 hover:text-rose-700 uppercase tracking-wider transition-colors flex-shrink-0 ml-3 border border-rose-200 px-2.5 py-1 rounded bg-rose-50/50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+
+                            {blog.tags && blog.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {blog.tags.map((tag: string) => (
+                                  <span
+                                    key={tag}
+                                    className="bg-sky-50 text-skyblue border border-sky-100 text-[10px] px-2 py-0.5 rounded font-medium"
+                                  >
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">
+                              {blog.content}
+                            </p>
+
+                            {blog.imageUrl && (
+                              <div className="pt-2">
+                                <img
+                                  src={blog.imageUrl}
+                                  alt={blog.title}
+                                  className="w-full max-h-64 object-cover rounded-md border border-slate-200"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
-            {/* ==================== TAB 5: ADMIN PANEL ==================== */}
+            {/* ==================== TAB 6: ADMIN PANEL ==================== */}
             {activeTab === "admin" && user?.role === "admin" && (
               <div className="bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-slate-100">
@@ -2190,6 +3314,66 @@ function DashboardContent() {
                 </div>
               </div>
 
+              {/* Verified Contact Details - Only Available Inside View Profile */}
+              <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-navy uppercase tracking-wider flex items-center space-x-1.5">
+                    <svg className="w-4 h-4 text-skyblue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span>Verified Contact Particulars</span>
+                  </h4>
+                  <span className="text-[10px] font-bold text-sky-700 bg-sky-100/80 border border-sky-200 px-2 py-0.5 rounded-full">
+                    Exclusive Profile View
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-skyblue flex-shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] uppercase font-bold text-slate-400">Mobile Phone</p>
+                        <p className="text-xs font-extrabold text-navy truncate">{viewProfilePeer.phone || "Not Provided"}</p>
+                      </div>
+                    </div>
+                    {viewProfilePeer.phone && (
+                      <a
+                        href={`tel:${viewProfilePeer.phone}`}
+                        className="text-[10px] font-bold text-skyblue hover:text-navy bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded transition-colors flex-shrink-0 ml-2"
+                      >
+                        Call
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-skyblue flex-shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] uppercase font-bold text-slate-400">Email Address</p>
+                        <p className="text-xs font-extrabold text-navy truncate">{viewProfilePeer.email || "Not Provided"}</p>
+                      </div>
+                    </div>
+                    {viewProfilePeer.email && (
+                      <a
+                        href={`mailto:${viewProfilePeer.email}`}
+                        className="text-[10px] font-bold text-skyblue hover:text-navy bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded transition-colors flex-shrink-0 ml-2"
+                      >
+                        Email
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Grid Info */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 border border-slate-150 rounded-lg p-5">
                 <div>
@@ -2201,8 +3385,11 @@ function DashboardContent() {
                   <span className="font-bold text-navy text-xs">{viewProfilePeer.membershipNo || "XXXXXX"}</span>
                 </div>
                 <div>
-                  <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Contact Mobile</span>
-                  <span className="font-bold text-navy text-xs">{viewProfilePeer.phone || "Not visible"}</span>
+                  <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Peer Status</span>
+                  <span className="font-bold text-emerald-600 text-xs flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span>Active Member</span>
+                  </span>
                 </div>
                 <div>
                   <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Sub-location Area</span>
@@ -2258,6 +3445,71 @@ function DashboardContent() {
                   </div>
                 </div>
               )}
+
+              {/* Published Blogs */}
+              <div className="space-y-3">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                  </svg>
+                  <span>Published Blogs ({profileBlogs.length})</span>
+                </h4>
+                {profileBlogs.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic pl-1">No blogs published yet.</p>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                    {profileBlogs.map((blog: any) => (
+                      <div
+                        key={blog.id}
+                        className="border border-slate-200 rounded-lg p-3 hover:shadow-sm transition-smooth cursor-pointer"
+                        onClick={() => setExpandedBlogId(expandedBlogId === blog.id ? null : blog.id)}
+                      >
+                        <div className="flex items-start justify-between">
+                          <h5 className="text-xs font-bold text-navy leading-snug flex-grow">{blog.title}</h5>
+                          <svg
+                            className={`h-4 w-4 text-slate-400 flex-shrink-0 ml-2 transition-transform ${expandedBlogId === blog.id ? "rotate-180" : ""}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-semibold">
+                          {new Date(blog.timestamp).toLocaleDateString("en-IN", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </p>
+                        {blog.tags && blog.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {blog.tags.map((tag: string) => (
+                              <span key={tag} className="bg-sky-50 text-skyblue border border-sky-100 text-[9px] px-1.5 py-0.5 rounded font-medium">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {expandedBlogId === blog.id && (
+                          <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
+                            {blog.imageUrl && (
+                              <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-50 max-h-60 flex items-center justify-center">
+                                <img
+                                  src={blog.imageUrl}
+                                  alt={blog.title}
+                                  className="max-h-60 w-full object-contain rounded-lg"
+                                />
+                              </div>
+                            )}
+                            <p className="text-[11px] text-slate-600 leading-relaxed whitespace-pre-line text-justify">
+                              {blog.content}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Actions */}
               <div className="pt-6 border-t border-slate-100 flex justify-end space-x-3">

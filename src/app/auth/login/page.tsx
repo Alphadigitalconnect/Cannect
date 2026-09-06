@@ -3,10 +3,13 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import TermsModal from "@/components/TermsModal";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -21,8 +24,14 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+
+    if (!agreedToTerms) {
+      setError("Please consent to the Terms & Privacy sharing agreement before signing in.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -52,7 +61,9 @@ export default function LoginPage() {
 
   return (
     <div className="bg-slate-50 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full bg-white border border-slate-200 p-8 rounded-lg shadow-sm space-y-6">
+      <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
+      
+      <div className="max-w-md w-full bg-white border border-slate-200 p-8 rounded-2xl shadow-sm space-y-6">
         {/* Title */}
         <div className="text-center">
           <Link href="/" className="inline-flex items-center mb-4">
@@ -111,10 +122,32 @@ export default function LoginPage() {
             />
           </div>
 
+          {/* Privacy and Sharing Consent Agreement */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-start gap-2.5">
+            <input
+              type="checkbox"
+              id="terms"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-skyblue focus:ring-skyblue cursor-pointer accent-skyblue"
+            />
+            <label htmlFor="terms" className="text-[11px] text-slate-600 leading-snug cursor-pointer select-none">
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(true)}
+                className="text-skyblue font-bold underline hover:text-navy"
+              >
+                Terms of Service & Privacy Policy
+              </button>
+              , and consent to sharing my professional profile with verified CAs on CAnnect.
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-skyblue hover:bg-navy hover:text-white text-white font-bold text-xs rounded transition-smooth shadow-sm focus-ring uppercase tracking-wider"
+            className="w-full py-2.5 bg-skyblue hover:bg-navy hover:text-white text-white font-bold text-xs rounded transition-smooth shadow-sm focus-ring uppercase tracking-wider disabled:opacity-50"
           >
             {loading ? "Verifying..." : "Sign In"}
           </button>

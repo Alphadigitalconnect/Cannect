@@ -120,56 +120,99 @@ export default function GoDigitalPage() {
         </div>
       </section>
 
-      {/* 3. WHY GO DIGITAL SECTION */}
-      <section ref={whyGoDigitalRef} className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-16">
-        <div className="bg-white border border-slate-200 rounded-3xl p-8 md:p-12 shadow-sm space-y-10">
-          <div className="text-center">
-            <span className="text-[11px] text-skyblue font-bold uppercase tracking-wider bg-sky-50 border border-sky-200 px-3.5 py-1 rounded-full inline-block mb-3">
-              Practice Benefits
-            </span>
-            <h2 className="text-2xl md:text-3xl font-serif font-bold text-navy block">
-              Why Build a Digital Practice Presence?
+      {/* 3. WHY GO DIGITAL SECTION - BESPOKE PROFESSIONAL CARDS */}
+      <section ref={whyGoDigitalRef} className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 scroll-mt-16">
+        <div className="bg-white border border-slate-200/80 rounded-3xl p-8 md:p-14 shadow-sm space-y-12 relative overflow-hidden">
+          {/* Subtle background glow */}
+          <div className="absolute -right-20 -top-20 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-slate-100/60 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div className="text-center relative z-10 max-w-3xl mx-auto space-y-3">
+            <div className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-wider uppercase text-skyblue bg-sky-50/80 border border-sky-200/60 px-3.5 py-1.5 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-skyblue animate-pulse"></span>
+              Strategic Practice Advantages
+            </div>
+            <h2 className="text-2xl md:text-4xl font-serif font-bold text-navy tracking-tight">
+              Why Modern CA Firms Require a Digital Footprint
             </h2>
-            <p className="text-xs md:text-sm text-slate-500 mt-3 max-w-2xl mx-auto">
-              Establish authority and service client expectations efficiently in a digital-first market.
+            <p className="text-xs md:text-sm text-slate-500 leading-relaxed">
+              Elevate your firm from regional isolation into an authoritative, digitally discoverable institution compliant with the ICAI regulatory framework.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 relative z-10">
             {[
               {
-                icon: "🛡️",
-                title: "Credibility",
-                desc: "ICAI-compliant professional profile validates your credentials instantly to potential corporate clients."
+                tag: "COMPLIANCE",
+                title: "Statutory Credibility",
+                desc: "ICAI-aligned online profiles that validate credentials, member FRN, and areas of specialization to corporate boards.",
+                icon: (
+                  <svg className="w-6 h-6 text-skyblue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                )
               },
               {
-                icon: "🌍",
-                title: "Visibility",
-                desc: "Allows corporate partners and directories across India to easily find and connect with your expertise."
+                tag: "PAN-INDIA",
+                title: "Pan-India Reach",
+                desc: "Be discoverable for cross-border audits, transfer pricing referrals, and multi-state compliance assignments.",
+                icon: (
+                  <svg className="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )
               },
               {
-                icon: "⏳",
-                title: "Time-Saving",
-                desc: "Automates client greeting dispatches, due-date checklists, and compliance bulletins generation in seconds."
+                tag: "AUTOMATION",
+                title: "Automated Bulletins",
+                desc: "Deliver timely statutory due-date advisories and GST alerts branded seamlessly with your firm's identity.",
+                icon: (
+                  <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )
               },
               {
-                icon: "🚀",
-                title: "Competitive Edge",
-                desc: "Presents a tech-savvy, state-of-the-art firm appearance that outshines traditional paper-based competitors."
+                tag: "AUTHORITY",
+                title: "Peer Distinction",
+                desc: "Differentiate your boutique practice with modern digital collateral that instills immediate confidence in enterprise clients.",
+                icon: (
+                  <svg className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                )
               },
               {
-                icon: "📈",
-                title: "Lead Generation",
-                desc: "Securely route online service inquiries and callbacks directly into your designated WhatsApp pipeline."
+                tag: "INQUIRIES",
+                title: "Client Intake Pipeline",
+                desc: "Receive structured corporate consultation requests and advisory inquiries routed straight to your WhatsApp & email.",
+                icon: (
+                  <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                )
               }
             ].map((feat, idx) => (
-              <FadeIn key={idx} delay={idx * 120} className="h-full">
-                <div className="group border border-slate-200 hover:border-skyblue/60 rounded-2xl p-6 bg-slate-50/60 hover:bg-white text-center h-full flex flex-col items-center justify-start hover:shadow-md transition-all duration-300">
-                  <div className="w-12 h-12 rounded-xl bg-sky-50 border border-sky-100 group-hover:bg-skyblue/10 group-hover:border-skyblue/30 flex items-center justify-center text-2xl mb-4 transition-transform group-hover:scale-110">
-                    {feat.icon}
+              <FadeIn key={idx} delay={idx * 80} className="h-full">
+                <div className="group border border-slate-200/90 hover:border-skyblue/60 rounded-2xl p-6 bg-gradient-to-b from-white to-slate-50/50 hover:to-white text-left h-full flex flex-col justify-between hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100/70 border border-slate-200/60 group-hover:bg-sky-50 group-hover:border-sky-200 flex items-center justify-center transition-colors">
+                        {feat.icon}
+                      </div>
+                      <span className="text-[9px] font-bold tracking-widest text-slate-400 group-hover:text-skyblue transition-colors uppercase">
+                        {feat.tag}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-sm font-bold text-navy mb-1.5 group-hover:text-skyblue transition-colors">{feat.title}</h3>
+                      <p className="text-xs text-slate-500 leading-relaxed">{feat.desc}</p>
+                    </div>
                   </div>
-                  <h3 className="font-serif text-sm font-bold text-navy mb-2 group-hover:text-skyblue transition-colors">{feat.title}</h3>
-                  <p className="text-xs text-slate-500 leading-relaxed font-sans">{feat.desc}</p>
+                  <div className="pt-4 mt-2 border-t border-slate-150/70 flex items-center text-[10px] font-semibold text-slate-400 group-hover:text-skyblue transition-colors">
+                    <span>Learn more</span>
+                    <span className="ml-1 group-hover:translate-x-1 transition-transform">&rarr;</span>
+                  </div>
                 </div>
               </FadeIn>
             ))}
@@ -177,53 +220,122 @@ export default function GoDigitalPage() {
         </div>
       </section>
 
-      {/* 4. TWO-PATH SECTION (WEBSITES VS POSTERS SPLIT OPTIONS) */}
-      <section id="solutions-section" className="py-16 bg-slate-50 border-y border-slate-200 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
-          <div className="space-y-2">
+      {/* 4. TWO-PATH SECTION (BESPOKE SOLUTIONS TO SCALE) */}
+      <section id="solutions-section" className="py-20 bg-gradient-to-b from-slate-50 via-white to-slate-50 border-y border-slate-200/80 scroll-mt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-10">
+          <div className="space-y-3 max-w-2xl mx-auto">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-skyblue bg-sky-50 border border-sky-200 px-3.5 py-1.5 rounded-full inline-block">
+              Dedicated Practice Channels
+            </span>
             <h2 className="text-2xl md:text-3xl font-serif font-bold text-navy">
-              Two Modern Solutions to Scale
+              Two Tailored Solutions Built Specifically for Indian CAs
             </h2>
-            <p className="text-xs text-slate-500 max-w-xl mx-auto">
-              Select one or combine both into a unified bundle to maximize client coverage.
+            <p className="text-xs md:text-sm text-slate-500">
+              Deploy individually or combine into an integrated firm package to maximize compliance visibility.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto pt-2">
             {/* Website Path Card */}
-            <div className="bg-white border-2 border-skyblue p-8 rounded-2xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col justify-between space-y-6 group relative overflow-hidden">
-              <div className="space-y-3 relative z-10">
-                <span className="text-4xl group-hover:scale-110 transition-transform inline-block drop-shadow-sm">💻</span>
-                <h3 className="font-serif text-xl font-bold text-navy">Website Platform</h3>
-                <p className="text-xs text-slate-600 leading-relaxed text-justify font-medium">
-                  Launch a high-end, dynamic website template initialized for your firm. Update team biographies, showcase custom credentials, and accept client consultation inquiries.
-                </p>
+            <div className="bg-white border-2 border-sky-400/80 p-8 md:p-10 rounded-3xl shadow-lg hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 text-left flex flex-col justify-between space-y-6 group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-sky-50 rounded-bl-full pointer-events-none -z-0"></div>
+              
+              <div className="space-y-4 relative z-10">
+                <div className="flex items-center justify-between">
+                  <div className="w-14 h-14 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-skyblue shadow-xs group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-sky-700 bg-sky-100/70 border border-sky-200 px-3 py-1 rounded-full">
+                    ICAI Compliant
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="font-serif text-xl md:text-2xl font-bold text-navy">Chartered Practice Websites</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed mt-2 text-justify">
+                    Establish an institutional web presence designed according to ICAI guidelines. Showcase partners, highlight specific practice areas, and accept verified consultation requests.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 text-[11px] text-slate-600 font-medium">
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-skyblue font-bold">✓</span> Free Domain & Cloud Hosting
+                  </div>
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-skyblue font-bold">✓</span> SSL Secured & Mobile Ready
+                  </div>
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-skyblue font-bold">✓</span> Inquiry Intake Forms
+                  </div>
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-skyblue font-bold">✓</span> Direct WhatsApp Routing
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => websitePricingRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="relative z-10 w-fit px-5 py-2.5 bg-skyblue hover:bg-navy text-white text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-2 shadow-sm hover:shadow-md uppercase tracking-wider"
-              >
-                See Website Plans <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-              </button>
+
+              <div className="pt-2 relative z-10">
+                <button
+                  type="button"
+                  onClick={() => websitePricingRef.current?.scrollIntoView({ behavior: "smooth" })}
+                  className="w-full sm:w-auto px-6 py-3 bg-skyblue hover:bg-navy text-white text-xs font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-sm hover:shadow-md uppercase tracking-wider"
+                >
+                  <span>Explore Website Plans</span>
+                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+                </button>
+              </div>
             </div>
 
             {/* Poster Path Card */}
-            <div className="bg-white border-2 border-[#0a1f44] p-8 rounded-2xl shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col justify-between space-y-6 group relative overflow-hidden">
-              <div className="space-y-3 relative z-10">
-                <span className="text-4xl group-hover:scale-110 transition-transform inline-block drop-shadow-sm">🎨</span>
-                <h3 className="font-serif text-xl font-bold text-[#0a1f44]">Poster Platform</h3>
-                <p className="text-xs text-slate-600 leading-relaxed text-justify font-medium">
-                  Generate branded compliance announcements, tax rate briefs, and festival greeting posters automatically watermarked with your firm details.
-                </p>
+            <div className="bg-white border-2 border-slate-800 p-8 md:p-10 rounded-3xl shadow-lg hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 text-left flex flex-col justify-between space-y-6 group relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-slate-100 rounded-bl-full pointer-events-none -z-0"></div>
+
+              <div className="space-y-4 relative z-10">
+                <div className="flex items-center justify-between">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
+                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full">
+                    Branded Media
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="font-serif text-xl md:text-2xl font-bold text-navy">Statutory Compliance Posters</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed mt-2 text-justify">
+                    Auto-generated, professionally curated compliance calendars, tax notification briefs, and festival greetings watermarked with your firm name and contact particulars.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 text-[11px] text-slate-600 font-medium">
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-slate-800 font-bold">✓</span> Direct Tax & GST Alerts
+                  </div>
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-slate-800 font-bold">✓</span> High Court Case Law Briefs
+                  </div>
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-slate-800 font-bold">✓</span> Ready for WhatsApp & LinkedIn
+                  </div>
+                  <div className="flex items-center gap-1.5 text-navy">
+                    <span className="text-slate-800 font-bold">✓</span> No Watermark on Subscription
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => posterPricingRef.current?.scrollIntoView({ behavior: "smooth" })}
-                className="relative z-10 w-fit px-5 py-2.5 bg-[#0a1f44] hover:bg-skyblue text-white text-xs font-bold rounded-lg transition-all duration-300 flex items-center gap-2 shadow-sm hover:shadow-md uppercase tracking-wider"
-              >
-                See Poster Plans <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-              </button>
+
+              <div className="pt-2 relative z-10">
+                <button
+                  type="button"
+                  onClick={() => posterPricingRef.current?.scrollIntoView({ behavior: "smooth" })}
+                  className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-skyblue text-white text-xs font-bold rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-sm hover:shadow-md uppercase tracking-wider"
+                >
+                  <span>Explore Poster Plans</span>
+                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -436,25 +548,45 @@ export default function GoDigitalPage() {
 
           {/* Feature Icons Row */}
           <div className="max-w-4xl mx-auto pt-12 border-t border-slate-200 mt-12 grid grid-cols-2 md:grid-cols-5 gap-6 text-center text-slate-500 text-xs font-semibold uppercase tracking-wider">
-            <div>
-              <span className="text-lg block mb-1">🚫</span>
-              <span>Watermark Free</span>
+            <div className="flex flex-col items-center space-y-2 group">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-navy group-hover:text-skyblue transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+              <span className="text-[11px] font-bold text-navy">Watermark Free</span>
             </div>
-            <div>
-              <span className="text-lg block mb-1">🔄</span>
-              <span>Unlimited Posters</span>
+            <div className="flex flex-col items-center space-y-2 group">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-navy group-hover:text-skyblue transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </div>
+              <span className="text-[11px] font-bold text-navy">Unlimited Posters</span>
             </div>
-            <div>
-              <span className="text-lg block mb-1">📐</span>
-              <span>Custom Logo</span>
+            <div className="flex flex-col items-center space-y-2 group">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-navy group-hover:text-skyblue transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                </svg>
+              </div>
+              <span className="text-[11px] font-bold text-navy">Custom Firm Logo</span>
             </div>
-            <div>
-              <span className="text-lg block mb-1">✨</span>
-              <span>Premium Designs</span>
+            <div className="flex flex-col items-center space-y-2 group">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-navy group-hover:text-skyblue transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+              </div>
+              <span className="text-[11px] font-bold text-navy">Curated Layouts</span>
             </div>
-            <div className="col-span-2 md:col-span-1">
-              <span className="text-lg block mb-1">📞</span>
-              <span>Priority Support</span>
+            <div className="col-span-2 md:col-span-1 flex flex-col items-center space-y-2 group">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 group-hover:bg-sky-50 flex items-center justify-center text-navy group-hover:text-skyblue transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <span className="text-[11px] font-bold text-navy">Priority Support</span>
             </div>
           </div>
 

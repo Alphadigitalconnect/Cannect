@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import TermsModal from "@/components/TermsModal";
 
 function RegisterForm() {
   const router = useRouter();
@@ -15,6 +16,8 @@ function RegisterForm() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -111,8 +114,14 @@ function RegisterForm() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+
+    if (!agreedToTerms) {
+      setError("Please consent to the Terms & Privacy sharing policy to complete your registration.");
+      return;
+    }
+
+    setLoading(true);
 
     if (hasCop && (!firmName || !city || !state || !firmNumber)) {
       setError("Please provide your Firm Name, Firm Registration Number (FRN), and Location.");
@@ -171,6 +180,7 @@ function RegisterForm() {
 
   return (
     <div className="bg-slate-50 min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <TermsModal isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
       <div className="max-w-xl w-full bg-white border border-slate-200 p-8 rounded-lg shadow-sm space-y-6">
         {/* Title */}
         <div className="text-center">
@@ -359,6 +369,29 @@ function RegisterForm() {
               </div>
             )}
 
+            {!hasCop && (
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  id="terms-step2"
+                  checked={agreedToTerms}
+                  onChange={(e) => setAgreedToTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-skyblue focus:ring-skyblue cursor-pointer accent-skyblue"
+                />
+                <label htmlFor="terms-step2" className="text-[11px] text-slate-600 leading-snug cursor-pointer select-none">
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    className="text-skyblue font-bold underline hover:text-navy"
+                  >
+                    Terms of Service & Privacy Policy
+                  </button>
+                  , and consent to sharing my professional profile with verified CAs on CAnnect.
+                </label>
+              </div>
+            )}
+
             <div className="pt-2 border-t border-slate-100 flex justify-between">
               <button
                 type="button"
@@ -473,6 +506,27 @@ function RegisterForm() {
                 rows={3}
                 className="w-full text-xs p-2.5 border border-slate-200 rounded focus-ring bg-slate-50"
               />
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex items-start gap-2.5">
+              <input
+                type="checkbox"
+                id="terms-step3"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-skyblue focus:ring-skyblue cursor-pointer accent-skyblue"
+              />
+              <label htmlFor="terms-step3" className="text-[11px] text-slate-600 leading-snug cursor-pointer select-none">
+                I agree to the{" "}
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="text-skyblue font-bold underline hover:text-navy"
+                >
+                  Terms of Service & Privacy Policy
+                </button>
+                , and consent to sharing my professional profile with verified CAs on CAnnect.
+              </label>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex justify-between">
