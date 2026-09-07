@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { readDb, writeDb } from "@/lib/db";
 
 // GET chat groups for a user
 export async function GET(request: Request) {
@@ -9,14 +10,25 @@ export async function GET(request: Request) {
     const userId = searchParams.get("userId");
     if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-    const { data: userGroups, error } = await supabase
-      .from("chat_groups")
-      .select("*")
-      .contains("memberIds", [userId]);
+    let supabaseGroups: any[] = [];
+    try {
+      const { data: userGroups } = await supabase
+        .from("chat_groups")
+        .select("*")
+        .contains("memberIds", [userId]);
+      if (userGroups) supabaseGroups = userGroups;
+    } catch (e) {}
 
-    if (error) throw error;
+    const localDb = readDb();
+    const localGroups = (localDb.chatGroups || []).filter((g: any) =>
+      g.memberIds?.includes(userId)
+    );
 
-    return NextResponse.json({ chatGroups: userGroups || [] }, { status: 200 });
+    const groupMap = new Map<string, any>();
+    supabaseGroups.forEach((g) => groupMap.set(g.id, g));
+    localGroups.forEach((g: any) => groupMap.set(g.id, g));
+
+    return NextResponse.json({ chatGroups: Array.from(groupMap.values()) }, { status: 200 });
   } catch (error) {
     console.error("GET Chat Groups Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
@@ -32,19 +44,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
+    const groupId = "group_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
+
     const newGroup: Record<string, any> = {
+      id: groupId,
       name,
       isGroup: true,
       memberIds,
     };
 
-    const { data, error } = await supabase.from("chat_groups").insert([newGroup]).select().single();
-    if (error) {
-      console.error("Supabase chat_groups insert error:", error);
-      return NextResponse.json({ error: error.message || "Failed to create group." }, { status: 500 });
+    let savedGroup = { ...newGroup };
+
+    try {
+      const { data, error } = await supabase.from("chat_groups").insert([newGroup]).select().single();
+      if (!error && data) {
+        savedGroup = data;
+      }
+    } catch (e) {
+      console.warn("Supabase chat_groups insert warning:", e);
     }
 
-    return NextResponse.json({ chatGroup: data }, { status: 201 });
+    try {
+      const localDb = readDb();
+      if (!localDb.chatGroups) localDb.chatGroups = [];
+      localDb.chatGroups.push(savedGroup as any);
+      writeDb(localDb);
+    } catch (e) {
+      console.error("Local db chat group write error:", e);
+    }
+
+    return NextResponse.json({ chatGroup: savedGroup }, { status: 201 });
   } catch (error) {
     console.error("POST Chat Group Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
