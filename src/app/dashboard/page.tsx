@@ -960,10 +960,63 @@ function DashboardContent() {
     return pId !== user.id && conversationPeerIds.has(pId);
   });
 
+  // Ensure any peer who sent a message or received one is present in activeChatPeers
+  const knownPeerIds = new Set(activeChatPeers.map((p: any) => p.userId || p.id));
+  chatMessages.forEach((m: any) => {
+    const otherId = m.senderId === user.id ? m.receiverId : m.senderId;
+    if (otherId && otherId !== user.id && !knownPeerIds.has(otherId) && !chatGroups.some((g: any) => g.id === otherId)) {
+      knownPeerIds.add(otherId);
+      const otherName = m.senderId === user.id ? "Fellow CA" : (m.senderName?.replace(/^CA\.\s*/, "") || "Fellow CA");
+      activeChatPeers.push({
+        id: otherId,
+        userId: otherId,
+        caName: otherName,
+        firmName: "Practicing Chartered Accountant",
+        city: "Verified CA",
+        state: "India"
+      });
+    }
+  });
+
   const availableDirectoryPeers = directoryUsers.filter((p: any) => {
     const pId = p.userId || p.id;
     return pId !== user.id && !conversationPeerIds.has(pId);
   });
+
+  // Calculate live unread notifications
+  const unreadDirectMessages = chatMessages.filter(
+    (m: any) => m.receiverId === user.id && !m.isRead
+  );
+  const unreadGroupMessages = chatMessages.filter(
+    (m: any) =>
+      chatGroups.some((g: any) => g.id === m.receiverId && g.memberIds?.includes(user.id)) &&
+      m.senderId !== user.id &&
+      !m.isRead
+  );
+  const totalUnreadMessages = unreadDirectMessages.length + unreadGroupMessages.length;
+  const totalNotifications = incomingReqs.length + totalUnreadMessages;
+
+  // Group unread direct messages by sender for live notifications drawer
+  const unreadBySender = new Map<string, { senderId: string; senderName: string; count: number; latestTime: string; latestContent: string }>();
+  unreadDirectMessages.forEach((m: any) => {
+    const existing = unreadBySender.get(m.senderId);
+    if (existing) {
+      existing.count += 1;
+      if (new Date(m.timestamp).getTime() > new Date(existing.latestTime).getTime()) {
+        existing.latestTime = m.timestamp;
+        existing.latestContent = m.content || "Attached an image";
+      }
+    } else {
+      unreadBySender.set(m.senderId, {
+        senderId: m.senderId,
+        senderName: m.senderName || "Fellow CA",
+        count: 1,
+        latestTime: m.timestamp,
+        latestContent: m.content || "Attached an image",
+      });
+    }
+  });
+  const unreadSendersList = Array.from(unreadBySender.values());
 
   return (
     <div className="bg-slate-100 h-screen overflow-hidden ">
@@ -994,8 +1047,14 @@ function DashboardContent() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-serif text-sm font-bold text-navy">Notifications & Activity</h3>
-                    <p className="text-[11px] text-slate-400">Connection requests, messages, and platform activity</p>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-serif text-sm font-bold text-navy">Live Notifications & Activity</h3>
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Live • {liveSyncTime || "Active"}</span>
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">Real-time connection requests, direct messages, and network updates</p>
                   </div>
                 </div>
                 <button
@@ -1009,10 +1068,15 @@ function DashboardContent() {
               </div>
 
               <div className="p-5 overflow-y-auto space-y-4 text-xs">
-                {/* Incoming Connection Requests */}
+                {/* 1. Incoming Connection Requests */}
                 <div>
                   <h4 className="font-bold text-navy uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
                     <span>Pending Connection Requests ({incomingReqs.length})</span>
+                    {incomingReqs.length > 0 && (
+                      <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                        Action Required
+                      </span>
+                    )}
                   </h4>
                   {incomingReqs.length > 0 ? (
                     <div className="space-y-2.5">
@@ -1020,7 +1084,7 @@ function DashboardContent() {
                         <div key={req.id} className="border border-slate-200 rounded-xl p-3 bg-slate-50/60 flex items-center justify-between gap-2">
                           <div className="flex items-center space-x-2.5">
                             <img
-                              src={req.avatarUrl || `https://ui-avatars.com/api/?name=${req.senderName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
+                              src={req.avatarUrl || `https://ui-avatars.com/api/?name=${req.senderName || "CA"}&background=e0f2fe&color=0284c7&size=150`}
                               alt={req.caName}
                               className="h-9 w-9 rounded-full object-cover border border-slate-200"
                             />
@@ -1035,13 +1099,13 @@ function DashboardContent() {
                                 handleRespondToRequest(req.id, "accepted");
                                 setShowNotificationsModal(false);
                               }}
-                              className="px-2.5 py-1 bg-skyblue hover:bg-navy text-white font-bold text-[10px] rounded uppercase tracking-wider"
+                              className="px-2.5 py-1 bg-skyblue hover:bg-navy text-white font-bold text-[10px] rounded uppercase tracking-wider transition-colors"
                             >
                               Accept
                             </button>
                             <button
                               onClick={() => handleRespondToRequest(req.id, "rejected")}
-                              className="px-2 py-1 border border-slate-250 text-slate-500 hover:bg-slate-100 font-bold text-[10px] rounded uppercase tracking-wider"
+                              className="px-2 py-1 border border-slate-250 text-slate-500 hover:bg-slate-100 font-bold text-[10px] rounded uppercase tracking-wider transition-colors"
                             >
                               Ignore
                             </button>
@@ -1050,35 +1114,150 @@ function DashboardContent() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 py-2 italic">No pending connection requests.</p>
+                    <p className="text-[11px] text-slate-400 py-1 italic">No pending connection requests.</p>
                   )}
                 </div>
 
-                {/* Directory Live Status Alert */}
-                <div className="border border-emerald-150 rounded-xl p-3 bg-emerald-50/50 flex items-start gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 animate-pulse flex-shrink-0"></span>
-                  <div>
-                    <p className="font-bold text-emerald-900 text-xs">Live Directory Sync Active</p>
-                    <p className="text-[11px] text-emerald-700 leading-relaxed mt-0.5">
-                      Your directory and network connections are continuously synchronized with the Pan-India database in real time.
-                    </p>
-                  </div>
+                {/* 2. Live Unread Direct Messages */}
+                <div>
+                  <h4 className="font-bold text-navy uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
+                    <span>Unread Direct Messages ({unreadDirectMessages.length})</span>
+                    {unreadDirectMessages.length > 0 && (
+                      <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                        {unreadDirectMessages.length} unread
+                      </span>
+                    )}
+                  </h4>
+                  {unreadSendersList.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {unreadSendersList.map((item) => {
+                        const senderPeer =
+                          directoryUsers.find((p: any) => (p.userId || p.id) === item.senderId) ||
+                          connectedPeers.find((p: any) => (p.userId || p.id) === item.senderId) || {
+                            id: item.senderId,
+                            userId: item.senderId,
+                            caName: item.senderName.replace(/^CA\.\s*/, ""),
+                            firmName: "Practicing Chartered Accountant",
+                            city: "Verified CA",
+                            state: "India",
+                          };
+                        return (
+                          <div
+                            key={item.senderId}
+                            className="border border-sky-200 rounded-xl p-3 bg-sky-50/40 hover:bg-sky-50/70 transition-colors flex items-center justify-between gap-2"
+                          >
+                            <div className="flex items-center space-x-2.5 min-w-0">
+                              <img
+                                src={
+                                  senderPeer.avatarUrl ||
+                                  `https://ui-avatars.com/api/?name=${item.senderName || "CA"}&background=e0f2fe&color=0284c7&size=150`
+                                }
+                                alt={item.senderName}
+                                className="h-9 w-9 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center space-x-1.5">
+                                  <p className="font-bold text-navy text-xs truncate">
+                                    {item.senderName.startsWith("CA.") ? item.senderName : `CA. ${item.senderName}`}
+                                  </p>
+                                  <span className="h-2 w-2 rounded-full bg-rose-500 flex-shrink-0"></span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 truncate mt-0.5 max-w-[220px]">
+                                  &ldquo;{item.latestContent}&rdquo;
+                                </p>
+                                <span className="text-[9px] text-slate-400">
+                                  {new Date(item.latestTime).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                handleSelectChatPeer(senderPeer);
+                                setActiveTab("chat");
+                                setShowNotificationsModal(false);
+                              }}
+                              className="px-3 py-1.5 bg-skyblue hover:bg-navy text-white font-bold text-[10px] rounded-lg uppercase tracking-wider flex-shrink-0 transition-colors shadow-xs"
+                            >
+                              Open Chat
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 py-1 italic">No unread direct messages.</p>
+                  )}
                 </div>
 
-                {/* Community Discussions Activity */}
-                <div className="border border-sky-150 rounded-xl p-3 bg-sky-50/50 flex items-start gap-2.5">
-                  <div className="w-6 h-6 rounded-lg bg-sky-100 flex items-center justify-center text-skyblue flex-shrink-0">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                    </svg>
-                  </div>
+                {/* 3. Live Recent Network Activity */}
+                {connectedPeers.length > 0 && (
                   <div>
-                    <p className="font-bold text-sky-950 text-xs">Expertise & Issues Discussions</p>
-                    <p className="text-[11px] text-sky-800 leading-relaxed mt-0.5">
-                      Share challenges or case-law queries faced in your practice with images and documents in the Expertise tab.
-                    </p>
+                    <h4 className="font-bold text-navy uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
+                      <span>Recent Network Connections</span>
+                      <span className="text-[9px] text-slate-400 font-semibold">{connectedPeers.length} connected</span>
+                    </h4>
+                    <div className="space-y-2">
+                      {connectedPeers.slice(0, 3).map((peer: any) => (
+                        <div
+                          key={peer.userId || peer.id}
+                          className="border border-slate-200 rounded-xl p-2.5 bg-slate-50/50 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <img
+                              src={
+                                peer.avatarUrl ||
+                                `https://ui-avatars.com/api/?name=${peer.caName || "CA"}&background=e0f2fe&color=0284c7&size=150`
+                              }
+                              alt={peer.caName}
+                              className="h-8 w-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-navy text-xs truncate">CA. {peer.caName}</p>
+                              <p className="text-[10px] text-slate-400 truncate">{peer.city || peer.firmName || "Chartered Accountant"}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              handleSelectChatPeer(peer);
+                              setActiveTab("chat");
+                              setShowNotificationsModal(false);
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-sky-50 text-skyblue border border-sky-200 hover:border-skyblue font-bold text-[10px] rounded-lg uppercase tracking-wider flex-shrink-0 transition-colors"
+                          >
+                            Chat
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* 4. All Caught Up State */}
+                {incomingReqs.length === 0 && unreadDirectMessages.length === 0 && (
+                  <div className="text-center py-5 px-4 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl space-y-2">
+                    <div className="w-9 h-9 mx-auto rounded-full bg-emerald-50 border border-emerald-150 flex items-center justify-center text-emerald-600 text-base font-bold">
+                      ✓
+                    </div>
+                    <p className="font-bold text-navy text-xs">You&apos;re All Caught Up!</p>
+                    <p className="text-[11px] text-slate-400 max-w-xs mx-auto leading-relaxed">
+                      No pending connection requests or unread messages. Incoming updates will appear here in real time.
+                    </p>
+                    <div className="pt-1">
+                      <button
+                        onClick={() => {
+                          setActiveTab("search");
+                          setShowNotificationsModal(false);
+                        }}
+                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-skyblue font-bold text-[10px] rounded-lg border border-sky-200 uppercase tracking-wider transition-colors"
+                      >
+                        Explore Pan-India Directory
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 border-t border-slate-150 bg-slate-50 flex justify-end">
@@ -1125,9 +1304,9 @@ function DashboardContent() {
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
-                {incomingReqs.length > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center shadow-xs">
-                    {incomingReqs.length}
+                {totalNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center shadow-xs">
+                    {totalNotifications}
                   </span>
                 )}
               </button>
@@ -1138,7 +1317,7 @@ function DashboardContent() {
               {[
                 { id: "search", label: "Directory", icon: "🔍" },
                 { id: "connections", label: `My Network (${connectedPeers.length})`, icon: "👥", badge: incomingReqs.length },
-                { id: "chat", label: "Chats", icon: "💬" },
+                { id: "chat", label: "Chats", icon: "💬", badge: totalUnreadMessages },
                 { id: "blogs", label: "Share Expertise", icon: "✍️" },
                 { id: "profile", label: "Profile", icon: "👤" },
               ].map((tab) => (
@@ -1273,6 +1452,11 @@ function DashboardContent() {
                     </svg>
                     <span>Chats & Groups</span>
                   </div>
+                  {totalUnreadMessages > 0 && (
+                    <span className="h-5 min-w-5 px-1.5 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                      {totalUnreadMessages}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -1314,9 +1498,9 @@ function DashboardContent() {
                     </svg>
                     <span>Notifications</span>
                   </div>
-                  {incomingReqs.length > 0 && (
-                    <span className="h-5 w-5 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
-                      {incomingReqs.length}
+                  {totalNotifications > 0 && (
+                    <span className="h-5 min-w-5 px-1.5 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold">
+                      {totalNotifications}
                     </span>
                   )}
                 </button>

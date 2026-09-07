@@ -86,7 +86,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    const messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+    let messageId: string;
+    try {
+      messageId = crypto.randomUUID();
+    } catch {
+      messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+    }
 
     const newMessage: Record<string, any> = {
       id: messageId,
