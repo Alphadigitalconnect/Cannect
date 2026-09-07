@@ -138,6 +138,25 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Status must be 'accepted' or 'rejected'." }, { status: 400 });
       }
 
+      // If rejected, delete the connection row entirely so it won't linger
+      if (status === "rejected") {
+        const { error: deleteError } = await supabase
+          .from("connections")
+          .delete()
+          .eq("id", connectionId);
+
+        if (deleteError) {
+          console.error("Connection rejection delete error:", deleteError);
+          return NextResponse.json({ error: "Failed to reject connection." }, { status: 500 });
+        }
+
+        return NextResponse.json(
+          { message: "Request successfully rejected." },
+          { status: 200 }
+        );
+      }
+
+      // If accepted, update the status
       const { data, error } = await supabase
         .from("connections")
         .update({ status })

@@ -57,8 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
-    const newBlog = {
-      id: "blog_" + Date.now(),
+    const newBlog: Record<string, any> = {
       userId,
       authorName: user.caName,
       authorFirmName: user.firmName || "Independent Practitioner",
@@ -71,7 +70,10 @@ export async function POST(request: Request) {
     };
 
     const { data, error } = await supabase.from("blogs").insert([newBlog]).select().single();
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase blogs insert error:", error);
+      return NextResponse.json({ error: error.message || "Failed to publish post." }, { status: 500 });
+    }
 
     return NextResponse.json({ message: "Post published successfully.", blog: data }, { status: 201 });
   } catch (error) {

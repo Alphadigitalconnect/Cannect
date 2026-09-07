@@ -47,12 +47,12 @@ export default async function AboutPage() {
               <span>ICAI-Aligned Professional Ecosystem</span>
             </div>
 
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight leading-tight">
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-serif font-bold tracking-tight leading-tight">
               Uniting India's <br />
               <span className="text-skyblue">Chartered Accountants</span> Into One Powerful Network
             </h1>
 
-            <p className="text-slate-300 text-sm md:text-base leading-relaxed max-w-2xl font-light text-justify">
+            <p className="text-slate-300 text-xs md:text-sm leading-relaxed max-w-2xl font-light text-justify">
               CAnnect is India's dedicated peer platform built specifically for practicing and industry Chartered Accountants. We bridge regional silos, facilitate statutory peer second opinions, and empower independent practitioners to thrive in a digital-first era.
             </p>
 
@@ -125,7 +125,7 @@ export default async function AboutPage() {
               <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-skyblue bg-sky-50 px-3 py-1 rounded-full border border-sky-100">
                 Institutional Purpose
               </div>
-              <h2 className="text-2xl md:text-4xl font-serif font-bold text-navy leading-tight">
+              <h2 className="text-xl md:text-3xl font-serif font-bold text-navy leading-tight">
                 Closing the Opportunity Gap for Independent Practitioners
               </h2>
               <div className="space-y-4 text-xs md:text-sm text-slate-600 leading-relaxed text-justify">
@@ -203,7 +203,7 @@ export default async function AboutPage() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-skyblue bg-sky-50 border border-sky-200 px-3.5 py-1.5 rounded-full inline-block">
               Ecosystem Modules
             </span>
-            <h2 className="text-2xl md:text-3xl font-serif font-bold text-navy">
+            <h2 className="text-xl md:text-2xl font-serif font-bold text-navy">
               Four Interconnected Capabilities Built for Your Practice
             </h2>
             <p className="text-xs md:text-sm text-slate-500">
@@ -293,7 +293,7 @@ export default async function AboutPage() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-skyblue bg-sky-50 border border-sky-200 px-3.5 py-1.5 rounded-full inline-block">
               Streamlined Onboarding
             </span>
-            <h2 className="text-2xl md:text-4xl font-serif font-bold text-navy">
+            <h2 className="text-xl md:text-3xl font-serif font-bold text-navy">
               How CAnnect Works for You
             </h2>
             <p className="text-xs md:text-sm text-slate-500 max-w-xl mx-auto">
@@ -376,7 +376,7 @@ export default async function AboutPage() {
                 <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                   <span>✓ Statutory Ethics Alignment</span>
                 </div>
-                <h3 className="font-serif text-xl md:text-2xl font-bold text-navy">
+                <h3 className="font-serif text-lg md:text-xl font-bold text-navy">
                   Built on the Highest Ethical Standards of ICAI
                 </h3>
                 <p className="text-xs md:text-sm text-slate-600 leading-relaxed text-justify">
@@ -391,7 +391,7 @@ export default async function AboutPage() {
       {/* 7. BOTTOM CALL TO ACTION */}
       <section className="bg-gradient-to-r from-navy via-navy-light to-navy py-16 text-white text-center">
         <div className="max-w-3xl mx-auto px-4 space-y-6">
-          <h2 className="text-2xl md:text-4xl font-serif font-bold">
+          <h2 className="text-xl md:text-3xl font-serif font-bold">
             Ready to Connect with Peers Across India?
           </h2>
           <p className="text-xs md:text-sm text-slate-300 font-light max-w-lg mx-auto leading-relaxed">

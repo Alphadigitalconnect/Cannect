@@ -339,7 +339,7 @@ function DashboardContent() {
       fetchDirectoryUsers(user.id);
       fetchConnections(user.id);
       setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 12000);
+    }, 45000);
 
     return () => {
       if (channel && supabase && typeof supabase.removeChannel === "function") {
