@@ -311,12 +311,13 @@ function DashboardContent() {
     try {
       if (supabase && typeof supabase.channel === "function") {
         channel = supabase
-          .channel("directory-live-sync")
+          .channel("cannect-live-notifications")
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "users" },
             () => {
               fetchDirectoryUsers(user.id);
+              fetchConnections(user.id);
               setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             }
           )
@@ -328,18 +329,36 @@ function DashboardContent() {
               setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             }
           )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "connections" },
+            () => {
+              fetchConnections(user.id);
+              fetchDirectoryUsers(user.id);
+              setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            }
+          )
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "messages" },
+            () => {
+              fetchMessages(user.id);
+              setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            }
+          )
           .subscribe();
       }
     } catch (err) {
       console.warn("Realtime channel subscription error, falling back to interval:", err);
     }
 
-    // Fast polling fallback every 12 seconds
+    // Live polling fallback every 10 seconds for real-time notifications
     const interval = setInterval(() => {
       fetchDirectoryUsers(user.id);
       fetchConnections(user.id);
+      fetchMessages(user.id);
       setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 45000);
+    }, 10000);
 
     return () => {
       if (channel && supabase && typeof supabase.removeChannel === "function") {
@@ -2944,23 +2963,96 @@ function DashboardContent() {
                   </div>
                 </div>
 
+                {/* Dedicated Invitation Requests Line List */}
+                <div className="bg-amber-50/60 border border-amber-200 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      <h3 className="text-xs font-bold text-navy uppercase tracking-wider">
+                        Invitation & Verification Queue ({adminUsers.filter(u => (u.status || "approved") === "pending").length})
+                      </h3>
+                    </div>
+                    <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded">
+                      Line List: People Requesting Invitations
+                    </span>
+                  </div>
+
+                  {adminUsers.filter(u => (u.status || "approved") === "pending").length === 0 ? (
+                    <p className="text-[11px] text-slate-500 italic py-2">No pending invitation requests at this time. All applicants have been processed.</p>
+                  ) : (
+                    <div className="divide-y divide-amber-200/60 border border-amber-200/60 rounded bg-white overflow-hidden shadow-2xs">
+                      {adminUsers
+                        .filter(u => (u.status || "approved") === "pending")
+                        .map((u) => (
+                          <div key={u.id} className="p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-amber-50/30 transition-smooth">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-navy text-xs">CA. {u.caName}</span>
+                                <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">ICAI: {u.membershipNo}</span>
+                                {u.hasCop && <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-semibold">CoP</span>}
+                              </div>
+                              <p className="text-[11px] text-slate-600">
+                                <span className="font-medium text-navy">{u.firmName || "Individual Practice"}</span> &bull; {u.city}, {u.state}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                Email: <span className="text-navy">{u.email}</span> {u.phone ? `| Phone: ${u.phone}` : ""} &bull; Applied: {u.created_at ? new Date(u.created_at).toLocaleDateString() : "Recent"}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-2 shrink-0">
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`Approve invitation request for CA. ${u.caName}?`)) {
+                                    await fetch("/api/admin/users", {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "approved" })
+                                    });
+                                    fetchAdminUsers();
+                                  }
+                                }}
+                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded shadow-xs transition-smooth"
+                              >
+                                Approve Invite
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`Reject and delete registration application for CA. ${u.caName}?`)) {
+                                    await fetch("/api/admin/users", {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "rejected" })
+                                    });
+                                    fetchAdminUsers();
+                                  }
+                                }}
+                                className="px-3 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 text-[11px] font-bold rounded shadow-xs transition-smooth"
+                              >
+                                Reject & Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Filter Tabs */}
                 <div className="flex flex-wrap gap-2 border-b border-slate-100 pb-3">
-                  {(["all", "pending", "approved", "rejected"] as const).map((st) => {
+                  {(["all", "pending", "approved"] as const).map((st) => {
                     const count = st === "all" 
                       ? adminUsers.length 
                       : adminUsers.filter(u => (u.status || "approved") === st).length;
                     return (
                       <button
                         key={st}
-                        onClick={() => setAdminFilterStatus(st)}
+                        onClick={() => setAdminFilterStatus(st as any)}
                         className={`px-3 py-1.5 text-xs font-bold rounded capitalize transition-smooth ${
                           adminFilterStatus === st
                             ? "bg-navy text-white shadow-xs"
                             : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                       >
-                        {st} ({count})
+                        {st === "pending" ? "Pending Invitations" : st} ({count})
                       </button>
                     );
                   })}
@@ -2993,7 +3085,7 @@ function DashboardContent() {
                               <p className="text-xs text-slate-500 mt-1">{u.email} {u.phone ? `| ${u.phone}` : ""}</p>
                               <p className="text-[11px] text-slate-400 mt-1">Firm: {u.firmName || "Individual Practice"} &bull; {u.city || "N/A"}, {u.state || "N/A"}</p>
                             </div>
-                            <div className="flex space-x-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               {currentStatus !== "approved" && (
                                 <button
                                   onClick={async () => {
@@ -3011,23 +3103,6 @@ function DashboardContent() {
                                   Approve
                                 </button>
                               )}
-                              {currentStatus !== "rejected" && (
-                                <button
-                                  onClick={async () => {
-                                    if (confirm(`Reject CA. ${u.caName}?`)) {
-                                      await fetch("/api/admin/users", {
-                                        method: "PATCH",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ adminId: user.id, targetUserId: u.id, status: "rejected" })
-                                      });
-                                      fetchAdminUsers();
-                                    }
-                                  }}
-                                  className="px-3.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded shadow-xs transition-smooth"
-                                >
-                                  Reject
-                                </button>
-                              )}
                               {currentStatus !== "pending" && (
                                 <button
                                   onClick={async () => {
@@ -3043,6 +3118,22 @@ function DashboardContent() {
                                   className="px-3.5 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 text-xs font-bold rounded shadow-xs transition-smooth"
                                 >
                                   Set Pending
+                                </button>
+                              )}
+                              {u.id !== user.id && (
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`DANGER: Are you sure you want to permanently remove member CA. ${u.caName}? This will delete their account, firm details, and connections.`)) {
+                                      await fetch(`/api/admin/users?adminId=${user.id}&targetUserId=${u.id}`, {
+                                        method: "DELETE",
+                                      });
+                                      fetchAdminUsers();
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded shadow-xs transition-smooth"
+                                  title="Permanently delete member"
+                                >
+                                  Remove Member
                                 </button>
                               )}
                             </div>

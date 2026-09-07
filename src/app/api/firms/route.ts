@@ -25,10 +25,15 @@ export async function GET() {
       .select('senderId, receiverId')
       .eq('status', 'accepted');
 
+    const validUserIds = new Set(users.map((u) => u.id));
+    const validConnections = (connections || []).filter(
+      (c) => validUserIds.has(c.senderId) && validUserIds.has(c.receiverId)
+    );
+
     // 4. Map users into directory peers
     const directoryMembers = users.map((user) => {
       const userFirm = (firms || []).find((f) => f.userId === user.id);
-      const connectionCount = (connections || []).filter(
+      const connectionCount = validConnections.filter(
         (c) => c.senderId === user.id || c.receiverId === user.id
       ).length;
 
