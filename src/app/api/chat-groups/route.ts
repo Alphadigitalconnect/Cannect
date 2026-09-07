@@ -32,15 +32,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    const newGroup = {
-      id: "group_" + Date.now(),
+    const newGroup: Record<string, any> = {
       name,
       isGroup: true,
       memberIds,
     };
 
     const { data, error } = await supabase.from("chat_groups").insert([newGroup]).select().single();
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase chat_groups insert error:", error);
+      return NextResponse.json({ error: error.message || "Failed to create group." }, { status: 500 });
+    }
 
     return NextResponse.json({ chatGroup: data }, { status: 201 });
   } catch (error) {

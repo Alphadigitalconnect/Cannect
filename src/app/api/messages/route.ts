@@ -67,8 +67,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    const newMessage = {
-      id: "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
+    const newMessage: Record<string, any> = {
       senderId,
       senderName: senderName || "",
       receiverId,
@@ -79,7 +78,10 @@ export async function POST(request: Request) {
     };
 
     const { data, error } = await supabase.from("messages").insert([newMessage]).select().single();
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase messages insert error:", error);
+      return NextResponse.json({ error: error.message || "Failed to send message." }, { status: 500 });
+    }
 
     return NextResponse.json({ message: data }, { status: 201 });
   } catch (error) {
