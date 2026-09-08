@@ -133,6 +133,21 @@ function DashboardContent() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
 
+  // Online Presence state
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+
+  const fetchPresence = async () => {
+    try {
+      const res = await fetch("/api/presence");
+      if (res.ok) {
+        const data = await res.json();
+        setOnlineUserIds(data.onlineUserIds || []);
+      }
+    } catch (e) {
+      console.error("Error fetching presence:", e);
+    }
+  };
+
   // Admin Tab states
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [adminFirms, setAdminFirms] = useState<any[]>([]);
@@ -352,11 +367,12 @@ function DashboardContent() {
       console.warn("Realtime channel subscription error, falling back to interval:", err);
     }
 
-    // Live polling fallback every 10 seconds for real-time notifications
+    // Live polling fallback every 10 seconds for real-time notifications & presence
     const interval = setInterval(() => {
       fetchDirectoryUsers(user.id);
       fetchConnections(user.id);
       fetchMessages(user.id);
+      fetchPresence();
       setLiveSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }, 10000);
 
@@ -369,6 +385,38 @@ function DashboardContent() {
         }
       }
       clearInterval(interval);
+    };
+  }, [user?.id]);
+
+  // Online presence heartbeat: report online on login/mount, send heartbeat every 30s, and mark offline on exit
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const reportOnline = async () => {
+      try {
+        await fetch("/api/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, status: "online" }),
+        });
+        fetchPresence();
+      } catch (e) {}
+    };
+
+    reportOnline();
+    const heartbeatInterval = setInterval(reportOnline, 30000);
+
+    const handleBeforeUnload = () => {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify({ userId: user.id, status: "offline" })], { type: "application/json" });
+        navigator.sendBeacon("/api/presence", blob);
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [user?.id]);
 
@@ -834,7 +882,17 @@ function DashboardContent() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (user?.id) {
+      try {
+        await fetch("/api/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, status: "offline" }),
+          keepalive: true,
+        });
+      } catch (e) {}
+    }
     localStorage.removeItem("cannect_user");
     window.dispatchEvent(new Event("cannect_login_state"));
     router.push("/");
@@ -955,33 +1013,8 @@ function DashboardContent() {
     if (p.id) conversationPeerIds.add(p.id);
   });
 
-  const activeChatPeers = directoryUsers.filter((p: any) => {
-    const pId = p.userId || p.id;
-    return pId !== user.id && conversationPeerIds.has(pId);
-  });
-
-  // Ensure any peer who sent a message or received one is present in activeChatPeers
-  const knownPeerIds = new Set(activeChatPeers.map((p: any) => p.userId || p.id));
-  chatMessages.forEach((m: any) => {
-    const otherId = m.senderId === user.id ? m.receiverId : m.senderId;
-    if (otherId && otherId !== user.id && !knownPeerIds.has(otherId) && !chatGroups.some((g: any) => g.id === otherId)) {
-      knownPeerIds.add(otherId);
-      const otherName = m.senderId === user.id ? "Fellow CA" : (m.senderName?.replace(/^CA\.\s*/, "") || "Fellow CA");
-      activeChatPeers.push({
-        id: otherId,
-        userId: otherId,
-        caName: otherName,
-        firmName: "Practicing Chartered Accountant",
-        city: "Verified CA",
-        state: "India"
-      });
-    }
-  });
-
-  const availableDirectoryPeers = directoryUsers.filter((p: any) => {
-    const pId = p.userId || p.id;
-    return pId !== user.id && !conversationPeerIds.has(pId);
-  });
+  // Strict Rule: We can chat ONLY with connected members
+  const activeChatPeers = connectedPeers;
 
   // Calculate live unread notifications
   const unreadDirectMessages = chatMessages.filter(
@@ -1653,17 +1686,20 @@ function DashboardContent() {
                               View Profile
                             </button>
 
-                            <button
-                              onClick={() => {
-                                setSelectedChatPeer(peer);
-                                setActiveTab("chat");
-                              }}
-                              className="px-3 py-1.5 bg-sky-50 text-skyblue hover:bg-skyblue hover:text-white border border-sky-200 text-[11px] font-bold rounded transition-smooth shadow-xs uppercase tracking-wider flex items-center space-x-1"
-                              title="Direct Chat with CA"
-                            >
-                              <span>💬</span>
-                              <span>Chat</span>
-                            </button>
+                            {/* Chat button strictly for connected members only */}
+                            {status === "Connected" && (
+                              <button
+                                onClick={() => {
+                                  setSelectedChatPeer(peer);
+                                  setActiveTab("chat");
+                                }}
+                                className="px-3 py-1.5 bg-sky-50 text-skyblue hover:bg-skyblue hover:text-white border border-sky-200 text-[11px] font-bold rounded transition-smooth shadow-xs uppercase tracking-wider flex items-center space-x-1"
+                                title="Direct Chat with Connected CA"
+                              >
+                                <span>💬</span>
+                                <span>Chat</span>
+                              </button>
+                            )}
 
                             {status === "Connect" && (
                               <button
@@ -1865,6 +1901,17 @@ function DashboardContent() {
                                       <div className="flex-grow min-w-0">
                                         <div className="flex items-center space-x-1.5 flex-wrap">
                                           <h4 className="text-sm font-bold text-navy truncate">CA. {peer.caName}</h4>
+                                          {onlineUserIds.includes(peer.userId || peer.id) ? (
+                                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full">
+                                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                              <span>Online</span>
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 text-[9px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded-full">
+                                              <span className="h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                                              <span>Offline</span>
+                                            </span>
+                                          )}
                                           {peer.hasCop ? (
                                             <span title="Certificate of Practice Holder" className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
                                               COP
@@ -1996,10 +2043,21 @@ function DashboardContent() {
                           <h3 className="text-xs font-bold text-navy flex items-center space-x-2">
                             <span>{selectedChatPeer.isGroup ? selectedChatPeer.name : `CA. ${selectedChatPeer.caName}`}</span>
                           </h3>
-                          <span className="text-[11px] text-emerald-500 flex items-center space-x-1.5 font-semibold mt-0.5">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-                            <span>{selectedChatPeer.isGroup ? `${selectedChatPeer.memberIds.length} Members` : "Online"}</span>
-                          </span>
+                          {selectedChatPeer.isGroup ? (
+                            <span className="text-[11px] text-sky-600 flex items-center space-x-1.5 font-semibold mt-0.5">
+                              <span>{selectedChatPeer.memberIds?.length || 0} Members</span>
+                            </span>
+                          ) : onlineUserIds.includes(selectedChatPeer.userId || selectedChatPeer.id) ? (
+                            <span className="text-[11px] text-emerald-600 flex items-center space-x-1 font-semibold mt-0.5">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                              <span>Online</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 flex items-center space-x-1 font-medium mt-0.5">
+                              <span className="h-2 w-2 rounded-full bg-slate-300 inline-block"></span>
+                              <span>Offline</span>
+                            </span>
+                          )}
                         </div>
                       </>
                     ) : (
@@ -2071,82 +2129,68 @@ function DashboardContent() {
                       </div>
                     )}
 
-                    {/* Direct Messages Section */}
-                    <div className="flex-grow overflow-y-auto">
-                      <div className="bg-slate-100/80 px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200/50 flex justify-between items-center">
-                        <span>Conversations</span>
-                        <span className="text-[9px] font-normal text-slate-400">({activeChatPeers.length})</span>
-                      </div>
-                      {activeChatPeers.length > 0 ? (
-                        <div className="divide-y divide-slate-100">
-                          {activeChatPeers.map((peer) => {
-                            const isSelected = selectedChatPeer && !selectedChatPeer.isGroup && (selectedChatPeer.userId === peer.userId || selectedChatPeer.id === peer.id);
-                            const peerId = peer.userId || peer.id;
-                            const unreadCount = chatMessages.filter((m: any) => m.senderId === peerId && m.receiverId === user.id && !m.isRead).length;
-                            return (
-                              <button
-                                key={peer.id || peer.userId}
-                                onClick={() => handleSelectChatPeer(peer)}
-                                className={`w-full text-left p-3 flex items-center space-x-3 transition-smooth relative ${
-                                  isSelected ? "bg-sky-50/70 border-l-4 border-l-skyblue" : "hover:bg-slate-100"
-                                }`}
-                              >
-                                <img
-                                  src={peer.avatarUrl || `https://ui-avatars.com/api/?name=${peer.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
-                                  alt={peer.caName}
-                                  className="h-8 w-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
-                                />
-                                <div className="truncate flex-grow">
-                                  <h4 className="text-xs font-bold text-navy truncate">CA. {peer.caName}</h4>
-                                  <span className="text-[11px] text-slate-400 block truncate">{peer.firmName}</span>
-                                </div>
-                                {unreadCount > 0 && (
-                                  <div className="absolute right-3 top-1/2 -translate-y-1/2 h-2.5 w-2.5 bg-rose-500 rounded-full shadow-sm"></div>
-                                )}
-                              </button>
-                            );
-                          })}
+                      {/* Direct Messages Section - Connected Members Only */}
+                      <div className="flex-grow overflow-y-auto">
+                        <div className="bg-slate-100/80 px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200/50 flex justify-between items-center">
+                          <span>Connected CAs</span>
+                          <span className="text-[9px] font-normal text-slate-400">({activeChatPeers.length})</span>
                         </div>
-                      ) : (
-                        <p className="text-[11px] text-slate-400 text-center py-3 italic">No previous messages yet.</p>
-                      )}
-
-                      {/* Directory Members to start chat with */}
-                      {availableDirectoryPeers.length > 0 && (
-                        <div className="mt-2 border-t border-slate-200">
-                          <div className="bg-slate-100/80 px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200/50">
-                            Available CAs ({availableDirectoryPeers.length})
-                          </div>
+                        {activeChatPeers.length > 0 ? (
                           <div className="divide-y divide-slate-100">
-                            {availableDirectoryPeers.map((peer) => {
+                            {activeChatPeers.map((peer) => {
                               const isSelected = selectedChatPeer && !selectedChatPeer.isGroup && (selectedChatPeer.userId === peer.userId || selectedChatPeer.id === peer.id);
+                              const peerId = peer.userId || peer.id;
+                              const isPeerOnline = onlineUserIds.includes(peerId);
+                              const unreadCount = chatMessages.filter((m: any) => m.senderId === peerId && m.receiverId === user.id && !m.isRead).length;
                               return (
                                 <button
                                   key={peer.id || peer.userId}
                                   onClick={() => handleSelectChatPeer(peer)}
-                                  className={`w-full text-left p-2.5 flex items-center space-x-2.5 transition-smooth ${
+                                  className={`w-full text-left p-3 flex items-center space-x-3 transition-smooth relative ${
                                     isSelected ? "bg-sky-50/70 border-l-4 border-l-skyblue" : "hover:bg-slate-100"
                                   }`}
                                 >
-                                  <img
-                                    src={peer.avatarUrl || `https://ui-avatars.com/api/?name=${peer.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
-                                    alt={peer.caName}
-                                    className="h-7 w-7 rounded-full object-cover border border-slate-200 flex-shrink-0"
-                                  />
-                                  <div className="truncate flex-grow">
-                                    <h4 className="text-[11px] font-semibold text-navy truncate">CA. {peer.caName}</h4>
-                                    <span className="text-[10px] text-slate-400 block truncate">{peer.city !== "N/A" ? peer.city : peer.firmName}</span>
+                                  <div className="relative flex-shrink-0">
+                                    <img
+                                      src={peer.avatarUrl || `https://ui-avatars.com/api/?name=${peer.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
+                                      alt={peer.caName}
+                                      className="h-8 w-8 rounded-full object-cover border border-slate-200"
+                                    />
+                                    <span className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white ${
+                                      isPeerOnline ? "bg-emerald-500" : "bg-slate-300"
+                                    }`}></span>
                                   </div>
-                                  <span className="text-[10px] text-skyblue font-bold px-1.5 py-0.5 bg-sky-50 rounded border border-sky-200 shrink-0">
-                                    Chat
-                                  </span>
+                                  <div className="truncate flex-grow">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-xs font-bold text-navy truncate">CA. {peer.caName}</h4>
+                                      <span className={`text-[9px] font-medium ${isPeerOnline ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                                        {isPeerOnline ? "Online" : "Offline"}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-slate-400 block truncate">{peer.firmName || peer.city}</span>
+                                  </div>
+                                  {unreadCount > 0 && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 h-2.5 w-2.5 bg-rose-500 rounded-full shadow-sm"></div>
+                                  )}
                                 </button>
                               );
                             })}
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        ) : (
+                          <div className="p-4 text-center space-y-2">
+                            <p className="text-xs font-semibold text-slate-600">No Connected Members</p>
+                            <p className="text-[11px] text-slate-400 leading-relaxed">
+                              You can chat only with connected members.
+                            </p>
+                            <button
+                              onClick={() => setActiveTab("search")}
+                              className="px-3 py-1 bg-sky-50 text-skyblue hover:bg-skyblue hover:text-white font-bold text-[10px] rounded border border-sky-200 uppercase tracking-wider transition-colors"
+                            >
+                              Explore Directory
+                            </button>
+                          </div>
+                        )}
+                      </div>
                   </div>
 
                   {/* Right chat logs pane */}
@@ -3526,16 +3570,15 @@ function DashboardContent() {
               </div>
 
               <div className="flex flex-col items-center justify-center pt-2 space-y-1.5 text-xs text-slate-600 font-medium">
-                {shareCardPeer.phone && (
+                {shareCardPeer.membershipNo && (
                   <div className="flex items-center space-x-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-xs w-full max-w-[240px] justify-center">
-                    <svg className="w-3.5 h-3.5 text-skyblue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                    <span>{shareCardPeer.phone}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">ICAI MRN:</span>
+                    <span className="font-bold text-navy">{shareCardPeer.membershipNo}</span>
                   </div>
                 )}
-                {shareCardPeer.email && (
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-xs w-full max-w-[240px] justify-center">
-                    <svg className="w-3.5 h-3.5 text-skyblue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    <span>{shareCardPeer.email}</span>
+                {shareCardPeer.specialisations && shareCardPeer.specialisations.length > 0 && (
+                  <div className="flex items-center space-x-1 bg-sky-50 border border-sky-100 text-skyblue px-3 py-1.5 rounded-md shadow-xs w-full max-w-[240px] justify-center text-center font-bold text-[10px] truncate">
+                    <span>{shareCardPeer.specialisations.slice(0, 2).join(" • ")}</span>
                   </div>
                 )}
                 <div className="flex items-center space-x-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-xs w-full max-w-[240px] justify-center">
@@ -3563,7 +3606,7 @@ function DashboardContent() {
                           
                           if (actionDiv) actionDiv.style.display = 'flex';
 
-                          const shareText = `CA. ${shareCardPeer.caName}\n${shareCardPeer.firmName}\n📞 ${shareCardPeer.phone || 'Not Available'}\n✉️ ${shareCardPeer.email || 'Not Available'}\n📍 ${shareCardPeer.area ? shareCardPeer.area + ', ' : ''}${shareCardPeer.city}, ${shareCardPeer.state}\n\n🔗 Let's CAnnect:\nhttps://cannect.com/directory/${shareCardPeer.userId || shareCardPeer.id}`;
+                          const shareText = `CA. ${shareCardPeer.caName}\n${shareCardPeer.firmName}\n📍 ${shareCardPeer.area ? shareCardPeer.area + ', ' : ''}${shareCardPeer.city}, ${shareCardPeer.state}\n\n🔗 Let's CAnnect:\nhttps://cannect.com/dashboard/directory/${shareCardPeer.userId || shareCardPeer.id}`;
 
                           canvas.toBlob(async (blob) => {
                             if (blob) {
@@ -3670,50 +3713,27 @@ function DashboardContent() {
                     Exclusive Profile View
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-skyblue flex-shrink-0">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] uppercase font-bold text-slate-400">Mobile Phone</p>
-                        <p className="text-xs font-extrabold text-navy truncate">{viewProfilePeer.phone || "Not Provided"}</p>
-                      </div>
+                <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 text-sm font-bold">
+                      🔒
                     </div>
-                    {viewProfilePeer.phone && (
-                      <a
-                        href={`tel:${viewProfilePeer.phone}`}
-                        className="text-[10px] font-bold text-skyblue hover:text-navy bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded transition-colors flex-shrink-0 ml-2"
-                      >
-                        Call
-                      </a>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-skyblue flex-shrink-0">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] uppercase font-bold text-slate-400">Email Address</p>
-                        <p className="text-xs font-extrabold text-navy truncate">{viewProfilePeer.email || "Not Provided"}</p>
-                      </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold text-navy">Direct Contact Protection Active</p>
+                      <p className="text-[11px] text-slate-500">Phone numbers & emails are kept confidential. Connect securely inside CAnnect.</p>
                     </div>
-                    {viewProfilePeer.email && (
-                      <a
-                        href={`mailto:${viewProfilePeer.email}`}
-                        className="text-[10px] font-bold text-skyblue hover:text-navy bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded transition-colors flex-shrink-0 ml-2"
-                      >
-                        Email
-                      </a>
-                    )}
                   </div>
+                  {onlineUserIds.includes(viewProfilePeer.userId || viewProfilePeer.id) ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>Online Now</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full shrink-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-300"></span>
+                      <span>Offline</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -3856,17 +3876,19 @@ function DashboardContent() {
 
               {/* Actions */}
               <div className="pt-6 border-t border-slate-100 flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setViewProfilePeer(null);
-                    setSelectedChatPeer(viewProfilePeer);
-                    setActiveTab("chat");
-                  }}
-                  className="px-5 py-2 bg-slate-100 hover:bg-navy hover:text-white text-navy font-bold text-xs rounded transition-smooth shadow-xs uppercase tracking-wider flex items-center space-x-1.5"
-                >
-                  <span>💬</span>
-                  <span>Message CA</span>
-                </button>
+                {getConnectionStatus(viewProfilePeer.userId) === "Connected" && (
+                  <button
+                    onClick={() => {
+                      setViewProfilePeer(null);
+                      setSelectedChatPeer(viewProfilePeer);
+                      setActiveTab("chat");
+                    }}
+                    className="px-5 py-2 bg-skyblue hover:bg-navy text-white font-bold text-xs rounded transition-smooth shadow-xs uppercase tracking-wider flex items-center space-x-1.5"
+                  >
+                    <span>💬</span>
+                    <span>Message CA</span>
+                  </button>
+                )}
 
                 {getConnectionStatus(viewProfilePeer.userId) === "Connected" ? (
                   <span className="px-5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs rounded uppercase tracking-wider flex items-center space-x-1">

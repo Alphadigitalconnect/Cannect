@@ -189,29 +189,29 @@ export default function FirmDetailPage({ params }: PageProps) {
             </button>
           </div>
 
-          {/* Masked/Unmasked Contact Details Block */}
+          {/* Protected Contact Details Block */}
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
             <div className="space-y-1">
               <span className="block text-slate-400 font-bold uppercase text-[9px] tracking-wider">
-                {(currentUser?.id === firm.userId || (!firm.isPrivate && isConnected)) ? "Email Address" : "Protected Email"}
+                Email Address
               </span>
-              <span className="font-semibold text-navy text-sm font-mono">
-                {(currentUser?.id === firm.userId || (!firm.isPrivate && isConnected)) ? firm.email : maskEmail(firm.email)}
+              <span className="font-semibold text-slate-500 text-xs flex items-center space-x-1.5">
+                <span className="text-skyblue">🔒</span>
+                <span>Protected &bull; Connect via CAnnect in-app chat</span>
               </span>
             </div>
             <div className="space-y-1">
               <span className="block text-slate-400 font-bold uppercase text-[9px] tracking-wider">
-                {(currentUser?.id === firm.userId || (!firm.isPrivate && isConnected)) ? "Contact Number" : "Protected Contact Number"}
+                Contact Number
               </span>
-              <span className="font-semibold text-navy text-sm font-mono">
-                {(currentUser?.id === firm.userId || (!firm.isPrivate && isConnected)) ? firm.phone : maskPhone(firm.phone)}
+              <span className="font-semibold text-slate-500 text-xs flex items-center space-x-1.5">
+                <span className="text-skyblue">🔒</span>
+                <span>Protected &bull; In-app secure networking only</span>
               </span>
             </div>
-            {!(currentUser?.id === firm.userId || (!firm.isPrivate && isConnected)) && (
-              <div className="col-span-2 border-t border-slate-200/60 pt-3 text-[10px] text-slate-400 leading-relaxed text-justify">
-                *To comply with anti-solicitation guidelines and prevent scrapers from mining partner directories, contact information is masked. You can initiate contact directly through our secure messaging request module.
-              </div>
-            )}
+            <div className="col-span-2 border-t border-slate-200/60 pt-3 text-[10px] text-slate-400 leading-relaxed text-justify">
+              *To ensure maximum privacy and prevent spam, direct phone numbers and personal email addresses are never disclosed. All communication is conducted securely through CAnnect verified connection requests and messaging.
+            </div>
           </div>
 
           {/* Professional Experience */}

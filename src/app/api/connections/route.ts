@@ -58,8 +58,8 @@ export async function GET(request: Request) {
         city: peer.city,
         state: peer.state,
         avatarUrl: peer.avatarUrl || "",
-        email: conn.status === "accepted" ? peer.email : undefined,
-        phone: conn.status === "accepted" ? peer.phone : undefined,
+        email: undefined,
+        phone: undefined,
         timestamp: conn.timestamp,
       };
 

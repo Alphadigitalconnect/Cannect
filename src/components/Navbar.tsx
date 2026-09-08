@@ -83,7 +83,17 @@ export default function Navbar() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (user?.id) {
+      try {
+        await fetch("/api/presence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, status: "offline" }),
+          keepalive: true,
+        });
+      } catch (e) {}
+    }
     localStorage.removeItem("cannect_user");
     setUser(null);
     // Dispatch event to update other components

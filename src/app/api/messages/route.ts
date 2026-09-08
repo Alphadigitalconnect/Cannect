@@ -86,6 +86,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
+    // Security Rule: Users can chat ONLY with connected members (or in groups)
+    const localDb = readDb();
+    const isGroup = (localDb.chatGroups || []).some((g: any) => g.id === receiverId);
+
+    if (!isGroup) {
+      let isConnected = false;
+      try {
+        const { data: conn } = await supabase
+          .from("connections")
+          .select("id")
+          .eq("status", "accepted")
+          .or(`and(senderId.eq.${senderId},receiverId.eq.${receiverId}),and(senderId.eq.${receiverId},receiverId.eq.${senderId})`)
+          .maybeSingle();
+        if (conn) isConnected = true;
+      } catch (err) {}
+
+      if (!isConnected) {
+        isConnected = (localDb.connections || []).some(
+          (c: any) =>
+            c.status === "accepted" &&
+            ((c.senderId === senderId && c.receiverId === receiverId) ||
+             (c.senderId === receiverId && c.receiverId === senderId))
+        );
+      }
+
+      if (!isConnected) {
+        return NextResponse.json(
+          { error: "You can chat only with connected members. Please send a connection request first." },
+          { status: 403 }
+        );
+      }
+    }
+
     let messageId: string;
     try {
       messageId = crypto.randomUUID();

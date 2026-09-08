@@ -30,6 +30,14 @@ export async function POST(request: Request) {
     // Return user details without password
     const { password: _, ...safeUser } = user;
 
+    // Mark user presence as online
+    try {
+      const { setUserPresence } = await import("@/lib/presence");
+      setUserPresence(user.id, "online");
+    } catch (presErr) {
+      console.warn("Could not set login presence:", presErr);
+    }
+
     return NextResponse.json(
       { message: "Authentication successful.", user: safeUser },
       { status: 200 }
