@@ -887,6 +887,28 @@ function DashboardContent() {
     return "Connect";
   };
 
+  // Direct chat peers: connected peers + any peers with existing message history
+  const directChatPeers = (() => {
+    const peers = [...connectedPeers];
+    const peerIdsInChat = Array.from(
+      new Set(
+        chatMessages
+          .filter((m: any) => !chatGroups.some((g: any) => g.id === m.receiverId))
+          .map((m: any) => (m.senderId === user?.id ? m.receiverId : m.senderId))
+          .filter(Boolean)
+      )
+    );
+    peerIdsInChat.forEach((pid) => {
+      if (!peers.some((p) => p.userId === pid || p.id === pid)) {
+        const found = directoryUsers.find((d: any) => d.userId === pid || d.id === pid);
+        if (found) {
+          peers.push(found);
+        }
+      }
+    });
+    return peers;
+  })();
+
   if (loading || showSplash) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center space-y-8 overflow-hidden relative">
@@ -1049,11 +1071,17 @@ function DashboardContent() {
           {/* ==================== MOBILE TOP BAR & NAVIGATION ==================== */}
           <div className="block lg:hidden mb-4 space-y-3 flex-shrink-0">
             <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                id="mobile-profile-btn"
+                onClick={() => setActiveTab("profile")}
+                className="flex items-center space-x-3 text-left min-w-0"
+                title="My Profile"
+              >
                 <img
                   src={user.avatarUrl || `https://ui-avatars.com/api/?name=${user.caName || 'CA'}&background=e0f2fe&color=0284c7&size=150`}
                   alt={user.caName}
-                  className="h-10 w-10 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                  className={`h-10 w-10 rounded-full object-cover flex-shrink-0 border-2 transition-colors ${activeTab === "profile" ? "border-skyblue" : "border-slate-200"}`}
                 />
                 <div className="truncate">
                   <h3 className="text-xs font-bold text-navy flex items-center space-x-1 truncate">
@@ -1064,7 +1092,7 @@ function DashboardContent() {
                     {user.firmName || "Independent Practice"} &bull; {user.city}
                   </p>
                 </div>
-              </div>
+              </button>
 
               {/* Mobile Bell Button */}
               <button
@@ -1084,34 +1112,6 @@ function DashboardContent() {
               </button>
             </div>
 
-            {/* Mobile Horizontal Tabs Pill Scroller */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {[
-                { id: "search", label: "Directory", icon: "🔍" },
-                { id: "connections", label: `My Network (${connectedPeers.length})`, icon: "👥", badge: incomingReqs.length },
-                { id: "chat", label: "Chats", icon: "💬" },
-                { id: "blogs", label: "Share Expertise", icon: "✍️" },
-                { id: "profile", label: "Profile", icon: "👤" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 flex items-center space-x-1.5 flex-shrink-0 ${
-                    activeTab === tab.id
-                      ? "bg-skyblue text-white shadow-xs"
-                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                  {Boolean(tab.badge && tab.badge > 0) && (
-                    <span className="h-4 w-4 bg-rose-500 text-white rounded-full text-[9px] flex items-center justify-center font-bold">
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Main Grid Layout */}
@@ -1208,8 +1208,8 @@ function DashboardContent() {
                 <button
                   onClick={() => {
                     setActiveTab("chat");
-                    if (connectedPeers.length > 0 && !selectedChatPeer) {
-                      setSelectedChatPeer(connectedPeers[0]);
+                    if ((directChatPeers.length > 0 || connectedPeers.length > 0) && !selectedChatPeer) {
+                      setSelectedChatPeer(directChatPeers[0] || connectedPeers[0]);
                     }
                   }}
                   className={`flex items-center justify-between w-full px-3 py-2.5 rounded transition-smooth text-xs font-semibold ${
@@ -1292,7 +1292,7 @@ function DashboardContent() {
             </aside>
 
             {/* ==================== MAIN WORKSPACE CENTER COLUMN ==================== */}
-            <section className="lg:col-span-9 h-full overflow-y-auto pb-20 pr-1 sm:pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-6">
+            <section className="lg:col-span-9 h-full overflow-y-auto pb-28 lg:pb-20 pr-1 sm:pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-6">
             
             {/* ==================== TAB 1: DIRECTORY SEARCH ==================== */}
             {activeTab === "search" && (
@@ -1578,10 +1578,17 @@ function DashboardContent() {
                         { id: "direct-tax", name: "Direct Tax", specs: ["Direct Tax"] },
                         { id: "indirect-tax", name: "Indirect Tax", specs: ["GST & Indirect Tax", "Indirect Tax", "GST & Indirect Taxation"] },
                         { id: "transfer-pricing", name: "Transfer Pricing", specs: ["Transfer Pricing"] },
-                        { id: "audit-assurance", name: "Audit & Assurance", specs: ["Audit & Assurance", "Audit and Assurance"] },
+                        { id: "audit-assurance", name: "Audit & Assurance", specs: ["Audit & Assurance", "Audit and Assurance", "Statutory Audit"] },
                         { id: "roc-compliances", name: "ROC & Company Law", specs: ["Company Law / ROC", "ROC Compliances", "ROC"] },
                         { id: "startup", name: "Startup Advisory", specs: ["Startup Advisory", "Startup"] },
-                      ] as { id: string; name: string; specs?: string[] }[]).map((cat) => {
+                        { id: "general", name: "General Practice & Advisory", isGeneral: true },
+                      ] as { id: string; name: string; specs?: string[]; isGeneral?: boolean }[]).map((cat) => {
+                        const allKnownSpecs = [
+                          "Direct Tax", "GST & Indirect Tax", "Indirect Tax", "GST & Indirect Taxation",
+                          "Transfer Pricing", "Audit & Assurance", "Audit and Assurance", "Statutory Audit",
+                          "Company Law / ROC", "ROC Compliances", "ROC", "Startup Advisory", "Startup"
+                        ];
+
                         // Filter peers by search query and category
                         const peers = connectedPeers.filter((peer) => {
                           const matchesSearch = !networkSearchQuery.trim() || 
@@ -1594,12 +1601,17 @@ function DashboardContent() {
 
                           if (cat.id === "all") return true;
 
+                          if (cat.isGeneral) {
+                            return !peer.specialisations || peer.specialisations.length === 0 ||
+                              !peer.specialisations.some((s: string) => allKnownSpecs.includes(s));
+                          }
+
                           return peer.specialisations && peer.specialisations.some((s: string) => cat.specs?.includes(s));
                         });
 
                         // Only show non-empty category sections, or only show the "All" section if searching
                         if (cat.id !== "all" && networkSearchQuery.trim()) return null;
-                        if (cat.id === "all" && !networkSearchQuery.trim() && connectedPeers.length > 0) return null;
+                        if (cat.id === "all" && !networkSearchQuery.trim()) return null;
                         if (peers.length === 0) return null;
 
                         return (
@@ -1842,9 +1854,9 @@ function DashboardContent() {
                       <div className="bg-slate-100/80 px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-200/50">
                         Direct Messages
                       </div>
-                      {connectedPeers.length > 0 ? (
+                      {directChatPeers.length > 0 ? (
                         <div className="divide-y divide-slate-100">
-                          {connectedPeers.map((peer) => {
+                          {directChatPeers.map((peer) => {
                             const isSelected = selectedChatPeer && !selectedChatPeer.isGroup && (selectedChatPeer.userId === peer.userId || selectedChatPeer.id === peer.id);
                             const peerId = peer.userId || peer.id;
                             const unreadCount = chatMessages.filter((m: any) => m.senderId === peerId && m.receiverId === user.id && !m.isRead).length;
@@ -3058,6 +3070,94 @@ function DashboardContent() {
 
         </div>
       </main>
+
+      {/* ==================== MOBILE FIXED BOTTOM NAVIGATION ==================== */}
+      <nav
+        id="mobile-bottom-nav"
+        aria-label="Dashboard navigation"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)]"
+      >
+        <div className="grid grid-cols-4 max-w-lg mx-auto h-16">
+          {[
+            {
+              id: "search",
+              label: "Directory",
+              badge: 0,
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
+              ),
+            },
+            {
+              id: "connections",
+              label: "My Network",
+              badge: incomingReqs.length,
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+              ),
+            },
+            {
+              id: "chat",
+              label: "Chats",
+              badge: chatMessages.filter((m: any) => !m.isRead && m.receiverId === user.id).length,
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+              ),
+            },
+            {
+              id: "blogs",
+              label: "Share Expertise",
+              badge: 0,
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+              ),
+            },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`bottom-nav-${tab.id}`}
+                type="button"
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (tab.id === "chat" && (directChatPeers.length > 0 || connectedPeers.length > 0) && !selectedChatPeer) {
+                    setSelectedChatPeer(directChatPeers[0] || connectedPeers[0]);
+                  }
+                }}
+                className={`relative flex flex-col items-center justify-center gap-1 min-w-0 transition-colors duration-200 active:scale-95 select-none [-webkit-tap-highlight-color:transparent] ${
+                  isActive ? "text-navy" : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                <span
+                  className={`absolute top-0 h-[3px] w-8 rounded-b-full bg-skyblue transition-opacity duration-200 ${
+                    isActive ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+                <span className="relative">
+                  <svg
+                    className={`h-6 w-6 transition-colors ${isActive ? "text-skyblue" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={isActive ? 2 : 1.6}
+                  >
+                    {tab.icon}
+                  </svg>
+                  {tab.badge > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+                      {tab.badge > 9 ? "9+" : tab.badge}
+                    </span>
+                  )}
+                </span>
+                <span className={`px-1 text-center text-[10px] min-[380px]:text-[11px] leading-tight ${isActive ? "font-semibold" : "font-medium"}`}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
       {/* ==================== CREATE GROUP DIALOG MODAL ==================== */}
       {showCreateGroupModal && (

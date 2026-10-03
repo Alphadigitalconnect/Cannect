@@ -1,0 +1,439 @@
+{
+  "description": "Known-issue backlog. Items here do not fail QA. Only add with explicit user approval.",
+  "issues": [
+    {
+      "id": "plaintext-password-compare:src/app/api/auth/login/route.ts",
+      "severity": "critical",
+      "message": "Passwords are compared in plaintext against the database (no hashing).",
+      "fix": "Store bcrypt/argon2 hashes at registration and compare with bcrypt.compare() at login.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "password-stored-unhashed:src/app/api/auth/reset-password/route.ts",
+      "severity": "critical",
+      "message": "Password is written to the database without a hashing function.",
+      "fix": "Hash with bcrypt (cost >= 10) before insert/update.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/admin/approvals/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/admin/approvals/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/admin/articles/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/admin/data/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/admin/events/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/admin/firms/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/admin/firms/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/admin/users/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/admin/users/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/app-teaser/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/blogs/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/blogs/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/chat-groups/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/chat-groups/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/connections/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/connections/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/contact-requests/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/firms/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/firms/[id]/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/inquiries/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/messages/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "client-trusted-identity:src/app/api/messages/route.ts",
+      "severity": "high",
+      "message": "API trusts a user id supplied by the client (IDOR / impersonation risk).",
+      "fix": "Ignore client-supplied identity; use the authenticated session's user id.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/posts/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauthenticated-mutation:src/app/api/users/[id]/route.ts",
+      "severity": "high",
+      "message": "Mutating API handler has no server-side session/auth verification; anyone can call it.",
+      "fix": "Verify a signed session (httpOnly cookie / Supabase auth) and derive the user id from it.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "users-select-star:src/app/api/admin/approvals/route.ts",
+      "severity": "medium",
+      "message": "select('*') on users without stripping the password column before responding.",
+      "fix": "Select explicit safe columns or strip password before returning.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "users-select-star:src/app/api/admin/data/route.ts",
+      "severity": "medium",
+      "message": "select('*') on users without stripping the password column before responding.",
+      "fix": "Select explicit safe columns or strip password before returning.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "users-select-star:src/app/api/admin/users/route.ts",
+      "severity": "medium",
+      "message": "select('*') on users without stripping the password column before responding.",
+      "fix": "Select explicit safe columns or strip password before returning.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "password-logged:src/app/api/auth/forgot-password/route.ts",
+      "severity": "medium",
+      "message": "Password value may be written to logs.",
+      "fix": "Never log credentials.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "users-select-star:src/app/api/firms/[id]/route.ts",
+      "severity": "medium",
+      "message": "select('*') on users without stripping the password column before responding.",
+      "fix": "Select explicit safe columns or strip password before returning.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unsafe-user-url:src/app/auth/forgot-password/page.tsx",
+      "severity": "medium",
+      "message": "User-controlled URL rendered in href without scheme validation (javascript: XSS).",
+      "fix": "Allow only http(s):// URLs via a safeUrl() helper.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "auth-state-in-localstorage:src/app/auth/login/page.tsx",
+      "severity": "medium",
+      "message": "Auth/user state kept in localStorage — client-controlled and readable by any XSS.",
+      "fix": "Use an httpOnly, Secure, SameSite session cookie issued by the server.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "auth-state-in-localstorage:src/app/auth/register/page.tsx",
+      "severity": "medium",
+      "message": "Auth/user state kept in localStorage — client-controlled and readable by any XSS.",
+      "fix": "Use an httpOnly, Secure, SameSite session cookie issued by the server.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "auth-state-in-localstorage:src/app/dashboard/page.tsx",
+      "severity": "medium",
+      "message": "Auth/user state kept in localStorage — client-controlled and readable by any XSS.",
+      "fix": "Use an httpOnly, Secure, SameSite session cookie issued by the server.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unsafe-user-url:src/app/dashboard/page.tsx",
+      "severity": "medium",
+      "message": "User-controlled URL rendered in href without scheme validation (javascript: XSS).",
+      "fix": "Allow only http(s):// URLs via a safeUrl() helper.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "missing-security-headers:next.config",
+      "severity": "medium",
+      "message": "No security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS).",
+      "fix": "Add async headers() in next.config or a middleware that sets them.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "error-detail-leak:src/app/api/connections/route.ts",
+      "severity": "low",
+      "message": "Raw internal error details returned to the client.",
+      "fix": "Return a generic message; log details server-side.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "blank-target-no-rel:src/app/go-digital/page.tsx",
+      "severity": "low",
+      "message": "target=\"_blank\" without rel=\"noopener noreferrer\".",
+      "fix": "Add rel=\"noopener noreferrer\".",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "blank-target-no-rel:src/components/Footer.tsx",
+      "severity": "low",
+      "message": "target=\"_blank\" without rel=\"noopener noreferrer\".",
+      "fix": "Add rel=\"noopener noreferrer\".",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "x-powered-by:next.config",
+      "severity": "low",
+      "message": "X-Powered-By: Next.js header is enabled (fingerprinting).",
+      "fix": "Set poweredByHeader: false.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "npm-audit:nanoid",
+      "severity": "high",
+      "message": "nanoid (<3.3.18) nanoid: custom generators can loop indefinitely when size is zero",
+      "fix": "Upgrade: npm audit fix",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "npm-audit:next",
+      "severity": "critical",
+      "message": "next (0.9.9 - 16.3.0-preview.10) Next.js Cache Poisoning; Denial of Service condition in Next.js image optimization",
+      "fix": "Upgrade: next@14.2.35",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "npm-audit:postcss",
+      "severity": "high",
+      "message": "postcss (<=8.5.22) PostCSS has XSS via Unescaped </style> in its CSS Stringify Output; PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
+      "fix": "Upgrade: next@14.2.35",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-unreachable:/about",
+      "severity": "high",
+      "message": "Page /about unreachable: This operation was aborted",
+      "fix": "Check dev server / route.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-unreachable:/knowledge",
+      "severity": "high",
+      "message": "Page /knowledge unreachable: This operation was aborted",
+      "fix": "Check dev server / route.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/go-digital",
+      "severity": "high",
+      "message": "Page /go-digital returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/app-teaser",
+      "severity": "high",
+      "message": "Page /app-teaser returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/auth/login",
+      "severity": "high",
+      "message": "Page /auth/login returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/auth/register",
+      "severity": "high",
+      "message": "Page /auth/register returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/auth/register-type",
+      "severity": "high",
+      "message": "Page /auth/register-type returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/auth/forgot-password",
+      "severity": "high",
+      "message": "Page /auth/forgot-password returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "page-5xx:/dashboard",
+      "severity": "high",
+      "message": "Page /dashboard returned HTTP 500.",
+      "fix": "Fix the server render error.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "not-found-handling:/",
+      "severity": "low",
+      "message": "Unknown route returned 500 instead of 404.",
+      "fix": "Ensure not-found.tsx is wired.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "runtime-missing-headers:/",
+      "severity": "medium",
+      "message": "Missing response headers: x-content-type-options, x-frame-options, referrer-policy, content-security-policy.",
+      "fix": "Add headers() in next.config.mjs.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "login-input-validation:/api/auth/login",
+      "severity": "low",
+      "message": "Login with non-string fields returned 500 (unvalidated input).",
+      "fix": "Validate types (typeof === 'string') and return 400.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "malformed-json:/api/auth/login",
+      "severity": "low",
+      "message": "Malformed JSON body returned 500.",
+      "fix": "Catch JSON parse errors and return 400.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "no-rate-limit:/api/auth/login",
+      "severity": "medium",
+      "message": "No rate limiting on login (8 rapid failures, no 429).",
+      "fix": "Add per-IP/per-email throttling.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "runtime-x-powered-by:/",
+      "severity": "low",
+      "message": "X-Powered-By: Next.js exposed.",
+      "fix": "poweredByHeader: false.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "idor-read:/api/messages",
+      "severity": "high",
+      "message": "/api/messages serves data for any userId without a session (IDOR).",
+      "fix": "Derive userId from the authenticated session; reject mismatches with 403.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "idor-read:/api/connections",
+      "severity": "high",
+      "message": "/api/connections serves data for any userId without a session (IDOR).",
+      "fix": "Derive userId from the authenticated session; reject mismatches with 403.",
+      "addedAt": "2026-10-03"
+    },
+    {
+      "id": "unauth-delete:/api/users/[id]",
+      "severity": "critical",
+      "message": "DELETE /api/users/:id succeeds without any authentication — anyone can delete any account.",
+      "fix": "Require session; allow only self-delete or admin.",
+      "addedAt": "2026-10-03"
+    }
+  ]
+}

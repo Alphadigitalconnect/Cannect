@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { ADMIN_EMAIL } from "@/lib/admin";
 
@@ -66,8 +67,11 @@ export async function POST(request: Request) {
     }
 
     const isAdmin = email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-    const status = isAdmin ? "approved" : "pending";
+    const status = "approved"; // Automatically grant access to new sign-ups immediately
     const role = isAdmin ? "admin" : "user";
+
+    // Hash the password with bcrypt (cost factor 10) so plain passwords are never stored or visible
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Insert User record
     const { data: newUser, error: userError } = await supabase
@@ -75,7 +79,7 @@ export async function POST(request: Request) {
       .insert([
         {
           email: email.toLowerCase(),
-          password, // In a real app, hash this with bcrypt before saving!
+          password: hashedPassword,
           caName,
           membershipNo,
           firmName: (hasCop && firmName) ? firmName : "Individual Member",

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(request: Request) {
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Token and new password are required." }, { status: 400 });
     }
 
-    if (newPassword.length < 6) {
+    if (typeof newPassword !== "string" || newPassword.length < 6) {
       return NextResponse.json({ error: "Password must be at least 6 characters long." }, { status: 400 });
     }
 
@@ -35,10 +36,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Token has expired. Please request a new one." }, { status: 400 });
     }
 
+    // Hash the new password with bcrypt
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
     // Update password
     const { error: updateError } = await supabase
       .from('users')
-      .update({ password: newPassword }) // In a real app, hash this!
+      .update({ password: hashedPassword })
       .eq('email', resetToken.email.toLowerCase());
 
     if (updateError) {

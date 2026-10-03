@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { readDb } from "@/lib/db";
 
 // GET all firms and members (used for the directory)
 export async function GET() {
@@ -20,15 +21,38 @@ export async function GET() {
     const { data: firms } = await supabase.from('firms').select('*');
 
     // 3. Fetch connections
-    const { data: connections } = await supabase
-      .from('connections')
-      .select('senderId, receiverId')
-      .eq('status', 'accepted');
+    let connections: any[] = [];
+    try {
+      const { data: supaConnections } = await supabase
+        .from('connections')
+        .select('senderId, receiverId')
+        .eq('status', 'accepted');
+      if (supaConnections) {
+        connections = [...supaConnections];
+      }
+    } catch (e) {
+      console.warn("Supabase connections query warning in firms:", e);
+    }
+
+    try {
+      const db = readDb();
+      const localAccepted = (db.connections || []).filter((c) => c.status === "accepted");
+      localAccepted.forEach((lc) => {
+        const exists = connections.some(
+          (c) =>
+            (c.senderId === lc.senderId && c.receiverId === lc.receiverId) ||
+            (c.senderId === lc.receiverId && c.receiverId === lc.senderId)
+        );
+        if (!exists) {
+          connections.push({ senderId: lc.senderId, receiverId: lc.receiverId });
+        }
+      });
+    } catch (e) {}
 
     // 4. Map users into directory peers
     const directoryMembers = users.map((user) => {
       const userFirm = (firms || []).find((f) => f.userId === user.id);
-      const connectionCount = (connections || []).filter(
+      const connectionCount = connections.filter(
         (c) => c.senderId === user.id || c.receiverId === user.id
       ).length;
 
