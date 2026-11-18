@@ -46,7 +46,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Post content cannot be empty." }, { status: 400 });
       }
 
-      const newPost: Record<string, any> = {
+      const newPost = {
+        id: "post_" + Date.now(),
         userId,
         caName: user.caName,
         firmName: user.firmName || "Independent Practitioner",
@@ -59,10 +60,7 @@ export async function POST(request: Request) {
       };
 
       const { data, error } = await supabase.from("posts").insert([newPost]).select().single();
-      if (error) {
-        console.error("Supabase posts insert error:", error);
-        return NextResponse.json({ error: error.message || "Failed to create post." }, { status: 500 });
-      }
+      if (error) throw error;
 
       return NextResponse.json({ message: "Post created successfully.", post: data }, { status: 201 });
     }

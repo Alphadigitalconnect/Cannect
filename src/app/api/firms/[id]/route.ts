@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { readDb } from "@/lib/db";
 
 interface ParamsProps {
   params: {
@@ -38,8 +39,8 @@ export async function GET(request: Request, { params }: ParamsProps) {
           state: user.state || "N/A",
           area: user.area || "",
           yearsOfPractice: Number(user.yearsOfPractice || 1),
-          phone: undefined,
-          email: undefined,
+          phone: user.phone || "",
+          email: user.email,
           bio: user.bio || "",
           avatarUrl: user.avatarUrl || null,
           status: user.status || "approved",
@@ -57,13 +58,32 @@ export async function GET(request: Request, { params }: ParamsProps) {
 
     const targetUserId = firm.userId || firm.id;
     
-    const { data: connections } = await supabase
-      .from('connections')
-      .select('senderId, receiverId')
-      .eq('status', 'accepted')
-      .or(`senderId.eq.${targetUserId},receiverId.eq.${targetUserId}`);
+    let connections: any[] = [];
+    try {
+      const { data: supaConnections } = await supabase
+        .from('connections')
+        .select('senderId, receiverId')
+        .eq('status', 'accepted')
+        .or(`senderId.eq.${targetUserId},receiverId.eq.${targetUserId}`);
+      if (supaConnections) connections = [...supaConnections];
+    } catch (e) {}
 
-    const connectionCount = (connections || []).length;
+    try {
+      const db = readDb();
+      const localAccepted = (db.connections || []).filter(
+        (c) => c.status === "accepted" && (c.senderId === targetUserId || c.receiverId === targetUserId)
+      );
+      localAccepted.forEach((lc) => {
+        const exists = connections.some(
+          (c) =>
+            (c.senderId === lc.senderId && c.receiverId === lc.receiverId) ||
+            (c.senderId === lc.receiverId && c.receiverId === lc.senderId)
+        );
+        if (!exists) connections.push({ senderId: lc.senderId, receiverId: lc.receiverId });
+      });
+    } catch (e) {}
+
+    const connectionCount = connections.length;
 
     const firmWithConnections = {
       ...firm,

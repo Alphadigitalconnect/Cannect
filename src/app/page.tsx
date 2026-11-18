@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import FadeIn from "@/components/FadeIn";
@@ -160,7 +160,7 @@ export default async function HomePage() {
                     Firm Directories
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed text-justify">
-                    Detail your specific practice focus — Transfer Pricing, Statutory Audits, GST Litigations, or Startup Advisory.
+                    Detail your specific practice focus ΓÇö Transfer Pricing, Statutory Audits, GST Litigations, or Startup Advisory.
                   </p>
                 </div>
               </div>

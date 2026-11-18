@@ -1,0 +1,11 @@
+{
+  "qa-gate": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node hooks/qa-stop-gate.mjs",
+        "timeout": 20
+      }
+    ]
+  }
+}

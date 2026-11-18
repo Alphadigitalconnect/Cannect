@@ -83,17 +83,7 @@ export default function Navbar() {
     };
   }, []);
 
-  const handleLogout = async () => {
-    if (user?.id) {
-      try {
-        await fetch("/api/presence", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id, status: "offline" }),
-          keepalive: true,
-        });
-      } catch (e) {}
-    }
+  const handleLogout = () => {
     localStorage.removeItem("cannect_user");
     setUser(null);
     // Dispatch event to update other components
@@ -107,10 +97,12 @@ export default function Navbar() {
     { name: "Events", path: "/events" },
     { name: "Go Digital", path: "/go-digital" },
     { name: "CAnnect App", path: "/app-teaser" },
+    { name: "Dashboard", path: "/dashboard" },
+    { name: "Approvals", path: "/admin-approvals" },
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-sm">
+    <header className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -121,117 +113,98 @@ export default function Navbar() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-8 items-center">
+          <nav className="hidden lg:flex space-x-7 items-center">
             {navLinks.map((link) => {
               const isActive = pathname === link.path;
               return (
                 <Link
                   key={link.name}
                   href={link.path}
-                  className={`text-sm font-medium transition-smooth ${
+                  className={`text-sm font-medium transition-smooth relative py-1 ${
                     isActive
-                      ? "text-skyblue border-b-2 border-skyblue pb-1"
-                      : "text-slate-600 hover:text-skyblue hover:border-b-2 hover:border-skyblue/50 pb-1"
+                      ? "text-navy font-semibold after:content-[''] after:absolute after:bottom-[-20px] after:left-0 after:right-0 after:h-[2.5px] after:bg-blue-600 after:rounded-full"
+                      : "text-slate-600 hover:text-navy hover:after:content-[''] hover:after:absolute hover:after:bottom-[-20px] hover:after:left-0 hover:after:right-0 hover:after:h-[2px] hover:after:bg-slate-300"
                   }`}
                 >
                   {link.name}
                 </Link>
               );
             })}
-
-            {/* Dashboard Link if Logged In */}
-            {user && (
-              <Link
-                href="/dashboard"
-                className={`text-sm font-medium transition-smooth ${
-                  pathname.startsWith("/dashboard")
-                    ? "text-skyblue border-b-2 border-skyblue pb-1"
-                    : "text-slate-600 hover:text-skyblue hover:border-b-2 hover:border-skyblue/50 pb-1"
-                }`}
-              >
-                Dashboard
-              </Link>
-            )}
-
-            {/* Admin Approvals Link */}
-            {user && user.role === "admin" && (
-              <Link
-                href="/admin-approvals"
-                className={`text-sm font-medium transition-smooth ${
-                  pathname.startsWith("/admin-approvals")
-                    ? "text-skyblue border-b-2 border-skyblue pb-1"
-                    : "text-slate-600 hover:text-skyblue hover:border-b-2 hover:border-skyblue/50 pb-1"
-                }`}
-              >
-                Approvals
-              </Link>
-            )}
           </nav>
 
           {/* CTAs */}
-          <div className="hidden md:flex items-center space-x-4">
-            {user ? (
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <button
-                    onClick={() => setNotificationsOpen(!notificationsOpen)}
-                    className="relative p-1.5 text-slate-500 hover:text-skyblue transition-smooth focus-ring rounded-full"
-                  >
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    {(pendingConnectionsCount > 0 || unreadMessagesCount > 0) && (
-                      <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
-                    )}
-                  </button>
-                  
-                  {notificationsOpen && (
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg border border-slate-200 overflow-hidden z-50">
-                      <div className="py-2 px-3 bg-slate-50 border-b border-slate-200 text-xs font-bold text-navy uppercase tracking-wider">
-                        Notifications
+          <div className="hidden md:flex items-center space-x-3">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  if (user) {
+                    setNotificationsOpen(!notificationsOpen);
+                  } else {
+                    router.push("/auth/login");
+                  }
+                }}
+                className="relative p-2 text-slate-600 hover:text-navy hover:bg-slate-50 transition-smooth rounded-full"
+                title="Notifications"
+                aria-label="Notifications"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {user && (pendingConnectionsCount > 0 || unreadMessagesCount > 0) && (
+                  <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"></span>
+                )}
+              </button>
+              
+              {user && notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden z-50">
+                  <div className="py-2.5 px-3 bg-slate-50 border-b border-slate-200 text-xs font-bold text-navy uppercase tracking-wider">
+                    Notifications
+                  </div>
+                  <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                    {pendingConnectionsCount === 0 && unreadMessagesCount === 0 ? (
+                      <div className="p-4 text-center text-[11px] text-slate-500">
+                        No new notifications
                       </div>
-                      <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-                        {pendingConnectionsCount === 0 && unreadMessagesCount === 0 ? (
-                          <div className="p-4 text-center text-[11px] text-slate-500">
-                            No new notifications
-                          </div>
-                        ) : (
-                          <>
-                            {pendingConnectionsCount > 0 && (
-                              <Link
-                                href="/dashboard?tab=connections"
-                                className="block p-3 hover:bg-slate-50 transition-smooth"
-                              >
-                                <p className="text-[11px] font-semibold text-navy">
-                                  {pendingConnectionsCount} new connection request{pendingConnectionsCount > 1 ? 's' : ''}
-                                </p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">Click to view and respond</p>
-                              </Link>
-                            )}
-                            {unreadMessagesCount > 0 && (
-                              <Link
-                                href="/dashboard?tab=chat"
-                                className="block p-3 hover:bg-slate-50 transition-smooth"
-                              >
-                                <p className="text-[11px] font-semibold text-navy">
-                                  {unreadMessagesCount} unread message{unreadMessagesCount > 1 ? 's' : ''}
-                                </p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">Check your inbox</p>
-                              </Link>
-                            )}
-                          </>
+                    ) : (
+                      <>
+                        {pendingConnectionsCount > 0 && (
+                          <Link
+                            href="/dashboard?tab=connections"
+                            className="block p-3 hover:bg-slate-50 transition-smooth"
+                          >
+                            <p className="text-[11px] font-semibold text-navy">
+                              {pendingConnectionsCount} new connection request{pendingConnectionsCount > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Click to view and respond</p>
+                          </Link>
                         )}
-                      </div>
-                    </div>
-                  )}
+                        {unreadMessagesCount > 0 && (
+                          <Link
+                            href="/dashboard?tab=chat"
+                            className="block p-3 hover:bg-slate-50 transition-smooth"
+                          >
+                            <p className="text-[11px] font-semibold text-navy">
+                              {unreadMessagesCount} unread message{unreadMessagesCount > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Check your inbox</p>
+                          </Link>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <span className="text-xs text-slate-600 font-medium max-w-[120px] truncate">
+            {user ? (
+              <div className="flex items-center space-x-3 pl-2 border-l border-slate-200">
+                <span className="text-xs text-slate-700 font-medium max-w-[120px] truncate">
                   CA. {user.caName || user.name || "Member"}
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="text-xs text-slate-600 hover:text-slate-900 transition-smooth border border-slate-300 hover:border-slate-400 px-3 py-1.5 rounded"
+                  className="text-xs text-slate-600 hover:text-slate-900 transition-smooth border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-lg"
                 >
                   Sign Out
                 </button>
@@ -240,13 +213,13 @@ export default function Navbar() {
               <>
                 <Link
                   href="/auth/login"
-                  className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-smooth"
+                  className="px-3 py-2 text-xs font-semibold text-slate-700 hover:text-navy transition-smooth rounded-lg"
                 >
-                  Login
+                  Sign In
                 </Link>
                 <Link
                   href="/auth/register-type"
-                  className="inline-flex items-center justify-center px-4 py-2 border border-skyblue text-sm font-medium rounded text-white bg-skyblue hover:bg-skyblue-dark hover:border-skyblue-dark transition-smooth shadow-sm focus-ring"
+                  className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold rounded-lg text-white bg-navy hover:bg-slate-800 transition-smooth shadow-xs cursor-pointer"
                 >
                   Register
                 </Link>

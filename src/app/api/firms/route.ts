@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { readDb } from "@/lib/db";
 
 // GET all firms and members (used for the directory)
 export async function GET() {
@@ -20,20 +21,38 @@ export async function GET() {
     const { data: firms } = await supabase.from('firms').select('*');
 
     // 3. Fetch connections
-    const { data: connections } = await supabase
-      .from('connections')
-      .select('senderId, receiverId')
-      .eq('status', 'accepted');
+    let connections: any[] = [];
+    try {
+      const { data: supaConnections } = await supabase
+        .from('connections')
+        .select('senderId, receiverId')
+        .eq('status', 'accepted');
+      if (supaConnections) {
+        connections = [...supaConnections];
+      }
+    } catch (e) {
+      console.warn("Supabase connections query warning in firms:", e);
+    }
 
-    const validUserIds = new Set(users.map((u) => u.id));
-    const validConnections = (connections || []).filter(
-      (c) => validUserIds.has(c.senderId) && validUserIds.has(c.receiverId)
-    );
+    try {
+      const db = readDb();
+      const localAccepted = (db.connections || []).filter((c) => c.status === "accepted");
+      localAccepted.forEach((lc) => {
+        const exists = connections.some(
+          (c) =>
+            (c.senderId === lc.senderId && c.receiverId === lc.receiverId) ||
+            (c.senderId === lc.receiverId && c.receiverId === lc.senderId)
+        );
+        if (!exists) {
+          connections.push({ senderId: lc.senderId, receiverId: lc.receiverId });
+        }
+      });
+    } catch (e) {}
 
     // 4. Map users into directory peers
     const directoryMembers = users.map((user) => {
       const userFirm = (firms || []).find((f) => f.userId === user.id);
-      const connectionCount = validConnections.filter(
+      const connectionCount = connections.filter(
         (c) => c.senderId === user.id || c.receiverId === user.id
       ).length;
 
@@ -51,8 +70,9 @@ export async function GET() {
         city: user.city || userFirm?.city || "N/A",
         state: user.state || userFirm?.state || "N/A",
         area: user.area || userFirm?.area || "",
-        phone: undefined,
-        email: undefined,
+        yearsOfPractice: Number(user.yearsOfPractice || userFirm?.yearsOfPractice || 1),
+        phone: user.phone || userFirm?.phone || "",
+        email: user.email,
         bio: user.bio || userFirm?.bio || "",
         avatarUrl: user.avatarUrl || userFirm?.avatarUrl || null,
         isPrivate: user.isPrivate === true,

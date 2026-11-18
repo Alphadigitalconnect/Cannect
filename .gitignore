@@ -36,4 +36,6 @@ yarn-error.log*
 next-env.d.ts
 
 data/db.json
-data/presence.json
+
+# QA agent run state & reports
+/.agents/.qa/

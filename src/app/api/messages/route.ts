@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { readDb, writeDb } from "@/lib/db";
+import { readDb, writeDb, Message } from "@/lib/db";
 
 // GET messages & chat groups for a user
 export async function GET(request: Request) {
@@ -10,67 +10,82 @@ export async function GET(request: Request) {
     const userId = searchParams.get("userId");
     if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-    let supabaseGroups: any[] = [];
-    let supabaseMessages: any[] = [];
+    let allMessages: any[] = [];
+    let groups: any[] = [];
 
-    // 1. Fetch from Supabase
+    // 1. Try Supabase first
     try {
-      const { data: groups } = await supabase
+      const { data: supaGroups, error: groupError } = await supabase
         .from("chat_groups")
         .select("*")
         .contains("memberIds", [userId]);
-      if (groups) supabaseGroups = groups;
+
+      if (!groupError && supaGroups) {
+        groups = supaGroups;
+      }
 
       const groupIds = (groups || []).map((g) => g.id);
 
-      const { data: directMsgs } = await supabase
+      const { data: directMsgs, error: dmError } = await supabase
         .from("messages")
         .select("*")
         .or(`senderId.eq.${userId},receiverId.eq.${userId}`)
         .order("timestamp", { ascending: true });
-      if (directMsgs) supabaseMessages.push(...directMsgs);
+
+      if (!dmError && directMsgs) {
+        allMessages = [...directMsgs];
+      }
 
       if (groupIds.length > 0) {
-        const { data: groupMsgs } = await supabase
+        const { data: groupMsgs, error: gmError } = await supabase
           .from("messages")
           .select("*")
           .in("receiverId", groupIds)
           .order("timestamp", { ascending: true });
-        if (groupMsgs) supabaseMessages.push(...groupMsgs);
+
+        if (!gmError && groupMsgs) {
+          const existingIds = new Set(allMessages.map((m) => m.id));
+          groupMsgs.forEach((m) => {
+            if (!existingIds.has(m.id)) allMessages.push(m);
+          });
+        }
       }
-    } catch (sbErr) {
-      console.warn("Supabase messages fetch warning:", sbErr);
+    } catch (e) {
+      console.warn("Supabase messages query error, falling back to persistent DB:", e);
     }
 
-    // 2. Fetch from local db.json
-    const localDb = readDb();
-    const localMessages = (localDb.messages || []).filter(
-      (m: any) =>
-        m.senderId === userId ||
-        m.receiverId === userId ||
-        (localDb.chatGroups || []).some((g: any) => g.id === m.receiverId && g.memberIds?.includes(userId))
-    );
+    // 2. Merge with persistent local DB so history is NEVER lost
+    try {
+      const db = readDb();
+      const localGroups = (db.chatGroups || []).filter((g) => (g.memberIds || []).includes(userId));
+      const groupMap = new Map((groups || []).map((g) => [g.id, g]));
+      localGroups.forEach((lg) => {
+        if (!groupMap.has(lg.id)) {
+          groups.push(lg);
+          groupMap.set(lg.id, lg);
+        }
+      });
 
-    const localGroups = (localDb.chatGroups || []).filter((g: any) =>
-      g.memberIds?.includes(userId)
-    );
+      const userGroupIds = new Set(groups.map((g) => g.id));
+      const localMsgs = (db.messages || []).filter(
+        (m) => m.senderId === userId || m.receiverId === userId || userGroupIds.has(m.receiverId)
+      );
 
-    // 3. Merge & Deduplicate
-    const messageMap = new Map<string, any>();
-    supabaseMessages.forEach((m) => messageMap.set(m.id, m));
-    localMessages.forEach((m: any) => messageMap.set(m.id, m));
+      const msgMap = new Map(allMessages.map((m) => [m.id, m]));
+      localMsgs.forEach((lm) => {
+        if (!msgMap.has(lm.id)) {
+          allMessages.push(lm);
+          msgMap.set(lm.id, lm);
+        }
+      });
+    } catch (e) {
+      console.warn("Local DB fallback error:", e);
+    }
 
-    const groupMap = new Map<string, any>();
-    supabaseGroups.forEach((g) => groupMap.set(g.id, g));
-    localGroups.forEach((g: any) => groupMap.set(g.id, g));
-
-    const allMessages = Array.from(messageMap.values());
+    // Sort combined list by timestamp
     allMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-    return NextResponse.json(
-      { messages: allMessages, chatGroups: Array.from(groupMap.values()) },
-      { status: 200 }
-    );
+    return NextResponse.json({ messages: allMessages, chatGroups: groups || [] }, { status: 200 });
   } catch (error) {
     console.error("GET Messages Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
@@ -86,84 +101,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    // Security Rule: Users can chat ONLY with connected members (or in groups)
-    const localDb = readDb();
-    const isGroup = (localDb.chatGroups || []).some((g: any) => g.id === receiverId);
-
-    if (!isGroup) {
-      let isConnected = false;
-      try {
-        const { data: conn } = await supabase
-          .from("connections")
-          .select("id")
-          .eq("status", "accepted")
-          .or(`and(senderId.eq.${senderId},receiverId.eq.${receiverId}),and(senderId.eq.${receiverId},receiverId.eq.${senderId})`)
-          .maybeSingle();
-        if (conn) isConnected = true;
-      } catch (err) {}
-
-      if (!isConnected) {
-        isConnected = (localDb.connections || []).some(
-          (c: any) =>
-            c.status === "accepted" &&
-            ((c.senderId === senderId && c.receiverId === receiverId) ||
-             (c.senderId === receiverId && c.receiverId === senderId))
-        );
-      }
-
-      if (!isConnected) {
-        return NextResponse.json(
-          { error: "You can chat only with connected members. Please send a connection request first." },
-          { status: 403 }
-        );
-      }
-    }
-
-    let messageId: string;
-    try {
-      messageId = crypto.randomUUID();
-    } catch {
-      messageId = "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
-    }
-
-    const newMessage: Record<string, any> = {
-      id: messageId,
+    const newMessage: Message = {
+      id: "msg_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
       senderId,
       senderName: senderName || "",
       receiverId,
       content: content || "",
-      imageUrl: imageUrl || null,
+      imageUrl: imageUrl || undefined,
       timestamp: new Date().toISOString(),
       isRead: false,
     };
 
-    let savedMessage = { ...newMessage };
-
-    // 1. Try Supabase insert
+    // 1. Save to persistent local database so it is NEVER lost
     try {
-      const { data, error } = await supabase
-        .from("messages")
-        .insert([newMessage])
-        .select()
-        .single();
-      if (!error && data) {
-        savedMessage = data;
-      }
-    } catch (sbErr) {
-      console.warn("Supabase messages insert skipped/failed:", sbErr);
-    }
-
-    // 2. Always persist into local db.json
-    try {
-      const localDb = readDb();
-      if (!localDb.messages) localDb.messages = [];
-      localDb.messages.push(savedMessage as any);
-      writeDb(localDb);
+      const db = readDb();
+      if (!db.messages) db.messages = [];
+      db.messages.push(newMessage);
+      writeDb(db);
     } catch (dbErr) {
-      console.error("Local db message write error:", dbErr);
+      console.error("Local DB write error:", dbErr);
     }
 
-    return NextResponse.json({ message: savedMessage }, { status: 201 });
+    // 2. Also try writing to Supabase
+    try {
+      await supabase.from("messages").insert([newMessage]);
+    } catch (supaErr) {
+      console.warn("Supabase messages insert error (persisted locally):", supaErr);
+    }
+
+    return NextResponse.json({ message: newMessage }, { status: 201 });
   } catch (error) {
     console.error("POST Message Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
@@ -179,7 +145,24 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
     }
 
-    // Update in Supabase
+    // 1. Update local database
+    try {
+      const db = readDb();
+      if (db.messages) {
+        db.messages.forEach((m) => {
+          if (isGroup && m.receiverId === peerId && m.senderId !== userId) {
+            m.isRead = true;
+          } else if (!isGroup && m.senderId === peerId && m.receiverId === userId) {
+            m.isRead = true;
+          }
+        });
+        writeDb(db);
+      }
+    } catch (e) {
+      console.warn("Local DB update isRead error:", e);
+    }
+
+    // 2. Update Supabase
     try {
       if (isGroup) {
         await supabase
@@ -196,22 +179,9 @@ export async function PATCH(request: Request) {
           .eq("receiverId", userId)
           .eq("isRead", false);
       }
-    } catch (e) {}
-
-    // Update in local db.json
-    try {
-      const localDb = readDb();
-      if (localDb.messages) {
-        localDb.messages.forEach((m: any) => {
-          if (isGroup) {
-            if (m.receiverId === peerId && m.senderId !== userId) m.isRead = true;
-          } else {
-            if (m.senderId === peerId && m.receiverId === userId) m.isRead = true;
-          }
-        });
-        writeDb(localDb);
-      }
-    } catch (e) {}
+    } catch (e) {
+      // Supabase error non-blocking
+    }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

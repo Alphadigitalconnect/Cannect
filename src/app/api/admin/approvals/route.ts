@@ -67,22 +67,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden: Admins only." }, { status: 403 });
     }
 
-    // If status is rejected, permanently delete user and associated records
-    if (status === "rejected") {
-      await supabase.from("connections").delete().or(`senderId.eq.${targetUserId},receiverId.eq.${targetUserId}`);
-      await supabase.from("messages").delete().or(`senderId.eq.${targetUserId},receiverId.eq.${targetUserId}`);
-      await supabase.from("firms").delete().eq("userId", targetUserId);
-      const { error: delError } = await supabase.from("users").delete().eq("id", targetUserId);
-
-      if (delError) {
-        console.error("User deletion error on reject:", delError);
-        return NextResponse.json({ error: "Failed to delete rejected user" }, { status: 500 });
-      }
-
-      return NextResponse.json({ message: "User rejected and permanently deleted from platform." }, { status: 200 });
-    }
-
-    // Update User to approved
+    // Update User
     const { error: userError } = await supabase
       .from('users')
       .update({ status })
