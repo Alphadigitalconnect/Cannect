@@ -67,6 +67,8 @@ export async function GET(request: Request, { params }: ParamsProps) {
 
     const firmWithConnections = {
       ...firm,
+      phone: undefined,
+      email: undefined,
       connectionCount,
     };
     
